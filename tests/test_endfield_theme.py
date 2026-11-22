@@ -234,7 +234,7 @@ def test_config_update_switches_accent(env):
     plugin, dist = env
     _apply(plugin)
     _set_config(plugin, accent="amber")
-    asyncio.run(plugin.on_config_update("self", {}, "0.4.1"))
+    asyncio.run(plugin.on_config_update("self", {}, "0.4.2"))
     html = (dist / "index.html").read_text(encoding="utf-8")
     assert "--ef-accent:#FFB31F" in html
     assert "--ef-accent:#B8FF3D" not in html, "旧强调色残留"
@@ -247,7 +247,7 @@ def test_disable_restores_official(env):
     cfg = get_default_config(type(plugin).config_model)
     cfg["plugin"]["enabled"] = False
     bind_context(plugin, plugin.ctx, cfg)
-    asyncio.run(plugin.on_config_update("self", cfg, "0.4.1"))
+    asyncio.run(plugin.on_config_update("self", cfg, "0.4.2"))
     assert (dist / "index.html").read_text(encoding="utf-8") == OFFICIAL_HTML
     assert not (dist / "fonts" / "endfield").exists()
 
@@ -664,7 +664,7 @@ def test_html_variant_attrs_lifecycle(env):
     assert "data-ef-ground" in tag
     # 热更新换 ground/motion
     _set_config(plugin, ground="grid", motion="calm")
-    asyncio.run(plugin.on_config_update("self", {}, "0.4.1"))
+    asyncio.run(plugin.on_config_update("self", {}, "0.4.2"))
     html2 = (dist / "index.html").read_text(encoding="utf-8")
     assert 'data-ef-ground="grid"' in html2
     assert 'data-ef-motion="calm"' in html2
@@ -704,7 +704,7 @@ def test_default_appearance_unchanged(env):
     assert "html[data-ef-ground='grid']" in html
 
 
-# ---------------------------------------------------------------- 0.4.1 浅色侧栏会话可读性
+# ---------------------------------------------------------------- 0.4.2 浅色侧栏会话可读性
 
 def test_css_sidebar_conversation_light_readable():
     """浅色侧栏会话名称必须可读（真机反馈「浅色时左侧变化不完全」）。
@@ -750,3 +750,111 @@ def test_sidebar_conversation_color_not_surface_ink(env):
     body = m.group(1)
     assert "#EDEDED" in body
     assert "--surface-ink" not in body and "var(--ef-ink)" not in body
+
+
+# ---------------------------------------------------------------- 0.4.2 图表提示框可读性
+
+def test_css_chart_tooltip_text_not_series_color():
+    """图表提示框文字不得沿用系列色（真机反馈「浅色模式下黄色字体看不清」）。
+
+    根因：recharts DefaultTooltipContent 把 entry.color（= 柱子 fill）写成
+    <li>/<span> 的**行内 color**，行内样式压过容器 color。
+    本主题 --board-chart-1 = 强调色，浅色 tooltip 底是白板 →
+    「输入」行黄字压白板 1.11:1，完全看不见；
+    「输出」行是墨 45% 合成灰 2.95:1，同样不达 AA。
+    图表色是填充语义，名称/数值必须回到墨与次要墨。
+    反向验证：删掉这组规则即失败。
+    """
+    import re
+
+    css = (PLUGIN_DIR / "theme" / "endfield-theme.css").read_text(encoding="utf-8")
+    decls = re.sub(r"/\*.*?\*/", "", css, flags=re.S)
+
+    # 行本体与数值：墨
+    m = re.search(r"\.recharts-tooltip-item,\s*([\s\S]*?)\{([^}]*)\}", decls)
+    assert m, "缺 tooltip 行文字规则"
+    head, body = m.group(1), m.group(2)
+    for cls in (
+        ".recharts-tooltip-item-name",
+        ".recharts-tooltip-item-separator",
+        ".recharts-tooltip-item-value",
+        ".recharts-tooltip-item-unit",
+        ".recharts-tooltip-label",
+        ".recharts-legend-item-text",
+    ):
+        assert cls in head, f"{cls} 未纳入行内 color 覆盖"
+    assert "color: var(--ef-ink) !important" in body
+
+    # 名称与图例文字：次要墨
+    m2 = re.search(
+        r"\.recharts-tooltip-item-name,\s*\.recharts-legend-item-text\s*\{([^}]*)\}", decls
+    )
+    assert m2, "缺名称/图例次要墨规则"
+    assert "color: var(--ef-ink2) !important" in m2.group(1)
+
+    # 数值等宽数字（语法：计数一律 tabular）
+    assert "font-variant-numeric: tabular-nums" in decls
+
+
+def test_chart_tooltip_contrast_both_modes():
+    """按 WCAG 复算：修复后 tooltip 文字在浅/深两套底上都达 AA。
+
+    这条断言算的是**修复后**的实际色对，不是复制源码里的数字。
+    """
+    def lin(v):
+        c = v / 255
+        return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
+
+    def lum(rgb):
+        return 0.2126 * lin(rgb[0]) + 0.7152 * lin(rgb[1]) + 0.0722 * lin(rgb[2])
+
+    def hx(h):
+        h = h.lstrip("#")
+        return [int(h[i:i + 2], 16) for i in (0, 2, 4)]
+
+    def ratio(a, b):
+        la, lb = lum(hx(a)), lum(hx(b))
+        return (max(la, lb) + 0.05) / (min(la, lb) + 0.05)
+
+    # 浅色：板 #FFFFFF；深色：板 #222222（preamble 的 --ef-panel）
+    assert ratio("#161616", "#FFFFFF") >= 4.5   # 数值/标签
+    assert ratio("#5C5C5C", "#FFFFFF") >= 4.5   # 名称
+    assert ratio("#EDEDED", "#222222") >= 4.5
+    assert ratio("#A3A3A3", "#222222") >= 4.5
+    # 反面对照：修复前的两种写法都不达标（证明这条修复不是可选的美化）
+    assert ratio("#FFFA00", "#FFFFFF") < 3      # 黄字压白板，1.11:1
+    # 墨 45% 合成在白板上 = #969696
+    assert ratio("#969696", "#FFFFFF") < 4.5
+
+
+def test_success_icon_light_uses_ink():
+    """成功图标（原生 text-green-500）浅色必须用墨：黄图标压白板 1.11:1 < 3:1 图标门槛。"""
+    import re
+
+    css = (PLUGIN_DIR / "theme" / "endfield-theme.css").read_text(encoding="utf-8")
+    decls = re.sub(r"/\*.*?\*/", "", css, flags=re.S)
+    m = re.search(r"(?<![\w.])\.text-green-500\s*\{([^}]*)\}", decls)
+    assert m, "缺成功图标规则"
+    assert "color: var(--ef-ink) !important" in m.group(1), "浅色成功图标仍用强调色，浅底上看不见"
+    m2 = re.search(r"html\.dark \.text-green-500\s*\{([^}]*)\}", decls)
+    assert m2, "深色成功图标未单独声明"
+    assert "color: var(--ef-accent) !important" in m2.group(1)
+
+
+def test_tooltip_rules_survive_stylegate(env):
+    """门控后 tooltip 规则仍在，且带官方风格让位前缀（切千禧/复古时不生效）。"""
+    plugin, dist = env
+    _apply(plugin)
+    html = (dist / "index.html").read_text(encoding="utf-8")
+    style = html.split('id="endfield-theme-style"')[1].split("</style>")[0]
+    assert ".recharts-tooltip-item-value" in style
+    gate = ":not([data-dashboard-style='millennium']):not([data-dashboard-style='future-retro'])"
+    # 选择器列表里每一条分支都必须带门控前缀（注释可能紧贴在选择器前，故不按行取）
+    import re
+    m = re.search(r"(?:html[^\n{}]*?)?\.recharts-tooltip-item,[\s\S]*?\{", style)
+    assert m, "产物里找不到 tooltip 规则"
+    branches = [b.strip() for b in m.group(0).rstrip("{").split(",")]
+    assert len(branches) >= 7, f"tooltip 选择器分支数异常：{len(branches)}"
+    for b in branches:
+        # 首条分支前可能粘着注释尾，只校验门控串存在
+        assert gate in b, f"分支未门控：{b[:80]}"

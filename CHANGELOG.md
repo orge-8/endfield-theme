@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.4.2 (2026-11-22)
+
+热修真机反馈「浅色模式下黄色字体看不清」（麦麦观察首页 Token 消耗柱图提示框）。
+
+- 根因：recharts `DefaultTooltipContent` 把每个系列的颜色写成 `<li>` / `<span>` 的
+  **行内 `color`**（`color: entry.color`，而 `entry.color = Bar 的 fill`）。
+  行内样式压过本主题给 `.recharts-default-tooltip` 容器设的 `color`，
+  于是浅色下「输入」行是 `#FFFA00` 压白板 `#FFFFFF` = **1.11:1**（完全看不见）；
+  「输出」行是 `--board-chart-2`（墨 45%）合成 `#969696` = **2.95:1**，同样不达 AA。
+  深色下「输入」14.34:1 正常，「输出」3.88:1 也偏低——所以这不是纯浅色问题。
+- 修复（CSS 第 8 节）：图表色是**填充语义**，不得当文字色。
+  - `.recharts-tooltip-item` / `-name` / `-separator` / `-value` / `-unit` /
+    `.recharts-tooltip-label` / `.recharts-legend-item-text` 一律 `color: var(--ef-ink)`；
+  - 名称与图例文字用次要墨 `--ef-ink2`（浅 6.69:1 / 深 6.31:1）；
+  - 标签加粗、数值 `tabular-nums`、名称与数值之间补 0.5rem 间距
+    （原生两者紧贴，`modern.css` 只给自定义 tooltip 补过）。
+  - 图例文字同类缺陷一并修（`DefaultLegendContent` 也写行内 `color`）。
+- 顺藤摸出的同类：成功图标 `.text-green-500`（重启遮罩 / 表情审核「全部审核完成」/
+  插件统计点赞）此前统一改强调色，但它们落在**浅底**上（白板、`bg-muted/50` 浅圆底），
+  黄图标压白板 1.11:1 < 3:1 图标门槛 → 改为浅色用墨、深色才用强调色。
+- 测试：43 → 47（+4：tooltip 文字不沿用系列色、修复后双模式 WCAG 复算并附修复前反面对照、
+  成功图标浅色用墨、门控后 7 条选择器分支全部带让位前缀）。
+  反向验证两轮：移除 tooltip 覆盖 → 2 红；成功图标退回纯强调色 → 1 红。
+- 门禁：PASS 3 / SKIP 0 / FAIL 0（静态 35 PASS / 1 WARN 预期）。
+
 ## 0.4.1 (2026-11-22)
 
 热修真机反馈「浅色时左侧变化不完全」：浅色模式侧栏会话名称整片消失。

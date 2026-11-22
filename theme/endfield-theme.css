@@ -903,6 +903,39 @@ html.dark input:focus-visible, html.dark textarea:focus-visible {
   border: 1px solid var(--ef-rule) !important;
   color: var(--ef-ink) !important;
 }
+/* 图表提示框里的文字：recharts 把每个系列的颜色写成 <li> / <span> 的**行内 color**
+   （DefaultTooltipContent.js: `color: entry.color`，entry.color = 柱子 fill；
+   DefaultLegendContent.js 同理），行内样式压过上面那条容器 color。
+   于是浅色下「输入」那行是黄字压白板 = 1.11:1，完全看不见；
+   「输出」那行是墨 45% 合成灰 = 2.95:1，也不达标。
+   图表色是**填充语义**，不能当文字色 —— 名称与数值一律回到墨 / 次要墨。
+   系列归属不靠颜色表达：tooltip 上方就是柱图本身、名称已写明「输入 / 输出」，
+   与 skill「图表不用红绿、当前项靠 trace + 文字」一致。 */
+.recharts-tooltip-item,
+.recharts-tooltip-item-name,
+.recharts-tooltip-item-separator,
+.recharts-tooltip-item-value,
+.recharts-tooltip-item-unit,
+.recharts-tooltip-label,
+.recharts-legend-item-text {
+  color: var(--ef-ink) !important;
+}
+.recharts-tooltip-item-name,
+.recharts-legend-item-text {
+  color: var(--ef-ink2) !important;
+}
+.recharts-tooltip-label {
+  font-weight: 700 !important;
+}
+/* 数值用等宽数字（语法：编号/计数/日期一律 tabular） */
+.recharts-tooltip-item-value,
+.recharts-tooltip-item-unit {
+  font-variant-numeric: tabular-nums;
+}
+/* 名称与数值之间留间距：原生两者紧贴（modern.css 只给自定义 tooltip 补过） */
+.recharts-tooltip-item-separator {
+  margin-right: 0.5rem;
+}
 [data-dashboard-dialog-content='true'] {
   background: var(--ef-panel) !important;
 }
@@ -1038,8 +1071,13 @@ html.dark .animate-spin.border-primary {
 .animate-bounce {
   animation: none !important;
 }
-/* 重启遮罩成功图标原生 text-green-500 绿：状态不用红绿，改强调色 */
+/* 重启遮罩 / 表情审核 / 插件统计的成功图标原生 text-green-500 绿：
+   状态不用红绿。但它们都落在**浅底**上（白板、bg-muted/50 的浅圆底），
+   黄色图标在白板上只有 1.11:1（图标门槛 3:1），所以浅色用墨、深色才用强调色。 */
 .text-green-500 {
+  color: var(--ef-ink) !important;
+}
+html.dark .text-green-500 {
   color: var(--ef-accent) !important;
 }
 

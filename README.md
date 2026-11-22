@@ -30,7 +30,7 @@
 | 配置节 | 字段 | 默认值 | 说明 |
 |---|---|---|---|
 | `[plugin]` | `enabled` | `true` | 是否启用主题（关闭即移除注入，恢复官方外观） |
-| `[plugin]` | `config_version` | `0.4.1` | 配置版本，升级时触发归一化重建 |
+| `[plugin]` | `config_version` | `0.4.2` | 配置版本，升级时触发归一化重建 |
 | `[appearance]` | `accent` | `lime` | 强调色：yellow(标准黄) / lime(青柠) / ice(冰蓝) / amber(琥珀) |
 | `[appearance]` | `paper` | `neutral` | 纸色：neutral(中性灰白) / warm(暖米色) / cool(冷青灰) |
 | `[appearance]` | `density` | `compact` | 密度：compact(紧凑) / standard(标准) / roomy(宽松) |
@@ -63,6 +63,7 @@ manifest `capabilities` 声明：`declarative_basic`（WebUI 配置页基础声�
 | 日志「无法定位 dashboard dist」 | 同上，或 dashboard 包损坏 |
 | 字体没变化 | Saira 只覆盖拉丁字符，中文本来就是黑体；检查 dist/fonts/endfield/ 是否有 Saira.ttf |
 | 保存按钮没有黄穿反馈 | 检查 dist/fonts/endfield/endfield-fx.js 是否存在；动效设为 calm 或系统减少动态效果时反馈静止 |
+| 图表提示框里文字看不清 | 0.4.2 已修：recharts 把系列色写成行内 `color`，黄字压白板 1.11:1。升级到 0.4.2 并完整重启 |
 | 想恢复官方外观 | 配置页关闭 enabled，或卸载插件（自动还原 index.html 并清理字体与 JS） |
 | dashboard 升级后样式错位 | 选择器基于 dashboard 1.10.8 核对，大版本升级需跟进维护 |
 
