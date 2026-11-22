@@ -27,12 +27,13 @@
   - 环境：devkit .venv SDK 2.23.0（与 PyPI 官方最新一致）
   - 官方最新版已核实（2026-11-22 17:43）：MaiBot v1.4.8（2026-11-20 发布），
     max_version=1.4.8 即官方最新，无需再放宽。
-  - 真机版本核实（用户截图）：MaiBot 1.4.2 + WebUI 1.10.2。
-    兼容性证据：1.4.2 与 1.4.3 的 plugin_runtime 71 文件 git blob sha 逐字节一致
-    （含 loader 依赖链）；dashboard 1.10.2 的 observation 选择器 / dashboard-button
-    类名 / html.dark 切换 / 行内 token 注入 / get_dist_path 与 1.10.8 全部一致。
-    min_version 由 1.4.3 降为 1.4.2（反向验证：min=1.4.3 时 host 1.4.2 报
-    「Host 版本不兼容」拒载；min=1.4.2 时 errors=0）。
+  - 真机版本核实（用户截图放大 + 用户确认）：**MaiBot 1.4.8**（侧栏第二行 v0.9.2
+    为 WebUI 前端版本标识）。与本地实测基线完全一致。
+  - min_version 保守放宽至 1.4.2：1.4.2 与 1.4.3 的 plugin_runtime 71 文件
+    git blob sha 逐字节一致（含 loader 依赖链）；dashboard 1.10.2 的 observation
+    选择器 / dashboard-button 类名 / html.dark 切换 / 行内 token 注入 /
+    get_dist_path 与 1.10.8 全部一致。反向验证：ManifestValidator(host=1.4.2)
+    对 min=1.4.3 报「Host 版本不兼容」拒载，min=1.4.2 errors=0。
 - 已知边界：
   - CSS 选择器基于 dashboard 1.10.8（host 1.4.8 配套）源码核对；dashboard 大版本
     升级后若类名/结构变化需跟进维护。
