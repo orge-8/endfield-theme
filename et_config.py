@@ -1,8 +1,9 @@
 """endfield-theme 配置模型（独立模块，避免 plugin.py 过长）。
 
-三个外观开关：accent / paper / density，全部是 Literal 枚举，
-WebUI 配置页按枚举渲染下拉框。默认值对应「夜班」预设：
-lime 强调色 + neutral 纸色 + compact 密度（深色模式下最协调）。
+六个外观开关：accent / paper / density / cut / ground / motion，
+全部是 Literal 枚举，WebUI 配置页按枚举渲染下拉框。
+默认值 = 0.3.0 现状（lime/neutral/compact/standard/contours/full），
+升级零外观变化；前三项默认对应「夜班」预设的深色协调组合。
 
 WebUI 中文化约定（对照 SDK config.py 与 dashboard plugin-config.tsx 源码核实）：
 - 字段标签：json_schema_extra 的 "label"（未声明时前端回退英文字段名）；
@@ -16,7 +17,7 @@ from typing import Literal
 
 from maibot_sdk import Field, PluginConfigBase
 
-SUPPORTED_CONFIG_VERSION = "0.3.0"  # 与 _manifest.json 的 version 保持同步
+SUPPORTED_CONFIG_VERSION = "0.4.0"  # 与 _manifest.json 的 version 保持同步
 
 
 class PluginSectionConfig(PluginConfigBase):
@@ -53,7 +54,11 @@ class PluginSectionConfig(PluginConfigBase):
 
 
 class AppearanceConfig(PluginConfigBase):
-    """外观：三个开关决定主题变体。明暗两套跟随 WebUI 自身的深浅色设置。"""
+    """外观：六个开关决定主题变体。明暗两套跟随 WebUI 自身的深浅色设置。
+
+    官方界面风格选「千禧 / 未来复古」时主题整体让位（界面回到官方原样），
+    切回「现代」自动恢复，无需重启。
+    """
 
     __ui_label__ = "外观"
     __ui_icon__ = "palette"
@@ -61,11 +66,11 @@ class AppearanceConfig(PluginConfigBase):
     __ui_i18n__ = {
         "zh-CN": {
             "title": "外观",
-            "description": "三个开关决定主题变体。明暗两套跟随 WebUI 自身的深浅色设置。",
+            "description": "六个开关决定主题变体。明暗跟随 WebUI 设置；官方风格选千禧/未来复古时主题让位。",
         },
         "en-US": {
             "title": "Appearance",
-            "description": "Three switches select the theme variant. Light/dark follows the WebUI setting.",
+            "description": "Six switches select the variant. Light/dark follows the WebUI; the theme yields under Millennium/Future-Retro styles.",
         },
     }
 
@@ -149,6 +154,89 @@ class AppearanceConfig(PluginConfigBase):
                     "choice:compact": "Compact (0.9375)",
                     "choice:standard": "Standard (1)",
                     "choice:roomy": "Roomy (1.0625)",
+                },
+            },
+        },
+    )
+
+
+    cut: Literal["tight", "standard", "wide"] = Field(
+        default="standard",
+        description=(
+            "切角幅度：tight(收紧 ×0.6) / standard(标准 ×1) / wide(放宽 ×1.6)。"
+            "所有切角一起缩放，切角=可点击的含义不变"
+        ),
+        json_schema_extra={
+            "label": "切角幅度",
+            "hint": "所有切角一起缩放，切角=可点击的含义不变",
+            "i18n": {
+                "zh-CN": {
+                    "label": "切角幅度",
+                    "hint": "所有切角一起缩放，切角=可点击的含义不变",
+                    "choice:tight": "收紧（×0.6）",
+                    "choice:standard": "标准（×1）",
+                    "choice:wide": "放宽（×1.6）",
+                },
+                "en-US": {
+                    "label": "Corner cut",
+                    "hint": "Scales every cut corner together; cut = pressable stays",
+                    "choice:tight": "Tight (×0.6)",
+                    "choice:standard": "Standard (×1)",
+                    "choice:wide": "Wide (×1.6)",
+                },
+            },
+        },
+    )
+    ground: Literal["contours", "grid", "hatch", "plain"] = Field(
+        default="contours",
+        description=(
+            "底纹：contours(等高线) / grid(网格) / hatch(斜线纹) / plain(无)。"
+            "只铺在主区留白处，极淡，随明暗自动适配"
+        ),
+        json_schema_extra={
+            "label": "底纹",
+            "hint": "只铺在主区留白处，极淡，随明暗自动适配",
+            "i18n": {
+                "zh-CN": {
+                    "label": "底纹",
+                    "hint": "只铺在主区留白处，极淡，随明暗自动适配",
+                    "choice:contours": "等高线",
+                    "choice:grid": "网格",
+                    "choice:hatch": "斜线纹",
+                    "choice:plain": "无",
+                },
+                "en-US": {
+                    "label": "Ground",
+                    "hint": "Faint texture in the main area margins only; follows light/dark",
+                    "choice:contours": "Contours",
+                    "choice:grid": "Grid",
+                    "choice:hatch": "Hatching",
+                    "choice:plain": "None",
+                },
+            },
+        },
+    )
+    motion: Literal["full", "calm"] = Field(
+        default="full",
+        description=(
+            "动效：full(全开) / calm(平静：去掉打开页面/浮层的入场，"
+            "保留回应操作与退出)。系统「减少动态效果」开启时两者都全静止"
+        ),
+        json_schema_extra={
+            "label": "动效",
+            "hint": "平静档去掉开页入场，保留回应操作与退出",
+            "i18n": {
+                "zh-CN": {
+                    "label": "动效",
+                    "hint": "平静档去掉开页入场，保留回应操作与退出",
+                    "choice:full": "全开",
+                    "choice:calm": "平静",
+                },
+                "en-US": {
+                    "label": "Motion",
+                    "hint": "Calm drops open-page entrances; responses and exits stay",
+                    "choice:full": "Full",
+                    "choice:calm": "Calm",
                 },
             },
         },

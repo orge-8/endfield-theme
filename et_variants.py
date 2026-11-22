@@ -1,4 +1,8 @@
-"""endfield-theme 变体定义：accent / paper / density 三个维度的取值表。
+"""endfield-theme 变体定义：六个维度的取值表。
+
+accent / paper / density / cut / ground / motion，对齐 endfield-ui-skill
+references/variation.md 的六维变体。默认值 = 0.3.0 现状
+（lime/neutral/compact/standard/contours/full），升级零外观变化。
 
 数值来源：终末地风格设计语言（参考 endfield-ui-skill 的公开设计规则，
 CSS 全部自行重写）。颜色为 sRGB hex；HSL 三元组供 dashboard 的
@@ -30,6 +34,15 @@ PAPERS = {
 }
 
 DENSITIES = {"compact": 0.9375, "standard": 1.0, "roomy": 1.0625}
+
+# 切角幅度：所有切角一起缩放，含义不变（skill variation.md）
+CUTS = {"tight": 0.6, "standard": 1.0, "wide": 1.6}
+
+# 底纹：contours 等高线（默认）/ grid 网格 / hatch 斜线纹 / plain 无
+GROUNDS = ("contours", "grid", "hatch", "plain")
+
+# 动效：full 全开（默认）/ calm 去掉开页入场，保留回应操作与进出
+MOTIONS = ("full", "calm")
 
 # 不随变体走的固定色
 INK_LIGHT = "#161616"
@@ -64,18 +77,31 @@ def hex_to_hsl(hex_color: str) -> str:
     return f"{hue * 360:.1f} {sat * 100:.1f}% {l * 100:.1f}%"
 
 
-def resolve(accent: str, paper: str, density: str) -> dict:
-    """把三个开关解析成完整变体字典；非法值回退默认（lime/neutral/compact）。"""
+def resolve(accent: str, paper: str, density: str,
+            cut: str = "standard", ground: str = "contours",
+            motion: str = "full") -> dict:
+    """把六个开关解析成完整变体字典；非法值回退默认。
+
+    默认值 = 0.3.0 现状（lime/neutral/compact/standard/contours/full），
+    老配置升级后外观零变化。
+    """
     accent = accent if accent in ACCENTS else "lime"
     paper = paper if paper in PAPERS else "neutral"
     density = density if density in DENSITIES else "compact"
+    cut = cut if cut in CUTS else "standard"
+    ground = ground if ground in GROUNDS else "contours"
+    motion = motion if motion in MOTIONS else "full"
     return {
         "accent": accent,
         "paper": paper,
         "density": density,
+        "cut": cut,
+        "ground": ground,
+        "motion": motion,
         "accentHex": ACCENTS[accent]["hex"],
         "accentHsl": ACCENTS[accent]["hsl"],
         "scale": DENSITIES[density],
+        "cutK": CUTS[cut],
         "light": dict(PAPERS[paper]["light"]),
         "dark": dict(PAPERS[paper]["dark"]),
     }
@@ -230,12 +256,21 @@ def build_preamble(variant: dict) -> str:
         f"--ef-command-bar:{COMMAND_BAR};"
         f"--ef-tri-a:{TRI_A};--ef-tri-c:{TRI_C};"
         f"--ef-scale:{scale};"
-        "--ef-cut-sm:7px;--ef-cut-btn:8px;--ef-cut-panel:26px;"
+        # 切角幅度：所有切角一起缩放（tight ×0.6 / standard ×1 / wide ×1.6）
+        f"--ef-cut-k:{variant['cutK']};"
+        f"--ef-cut-sm:{7 * variant['cutK']:g}px;"
+        f"--ef-cut-btn:{8 * variant['cutK']:g}px;"
+        f"--ef-cut-panel:{26 * variant['cutK']:g}px;"
+        f"--ef-cut-badge:{5 * variant['cutK']:g}px;"
+        f"--ef-cut-action:{4 * variant['cutK']:g}px;"
         "--ef-snap:cubic-bezier(0.16,1,0.3,1);"
         "--ef-mech:cubic-bezier(0.7,0,0.2,1);"
         "--ef-ease:cubic-bezier(0.2,0.7,0.1,1);"
         # 等高线底纹：墨色 18%（skill 基准 9%，按用户要求加强；只铺两角不闭合）
         "--ef-contour:color-mix(in srgb, var(--ef-ink) 18%, transparent);"
+        # 斜线纹（ground=hatch 与处理中/禁用共用）：45° 墨色 22%
+        "--ef-hatch:repeating-linear-gradient(-45deg, transparent 0 5px,"
+        "color-mix(in srgb, var(--ef-ink) 22%, transparent) 5px 6.5px);"
     )
     # primary：浅色=墨（text-primary 文字可读），深色=强调色（深底上可读）
     light = color_block(variant["light"], INK_LIGHT, INK2_LIGHT, DANGER_LIGHT,
@@ -254,4 +289,15 @@ def build_preamble(variant: dict) -> str:
     return (
         f"html{{{light}{shared}}}\n"
         f"html.dark{{{dark}{dark_own}}}\n"
+    )
+
+
+def variant_attrs(variant: dict) -> str:
+    """html 标签上的变体属性（ground/motion 由 CSS 按属性选择器消费）。
+
+    由 plugin.py 注入时写到 <html> 上；让位层不影响这两个属性本身。
+    """
+    return (
+        f' data-ef-ground="{variant["ground"]}"'
+        f' data-ef-motion="{variant["motion"]}"'
     )

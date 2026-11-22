@@ -234,7 +234,7 @@ def test_config_update_switches_accent(env):
     plugin, dist = env
     _apply(plugin)
     _set_config(plugin, accent="amber")
-    asyncio.run(plugin.on_config_update("self", {}, "0.3.0"))
+    asyncio.run(plugin.on_config_update("self", {}, "0.4.0"))
     html = (dist / "index.html").read_text(encoding="utf-8")
     assert "--ef-accent:#FFB31F" in html
     assert "--ef-accent:#B8FF3D" not in html, "旧强调色残留"
@@ -247,7 +247,7 @@ def test_disable_restores_official(env):
     cfg = get_default_config(type(plugin).config_model)
     cfg["plugin"]["enabled"] = False
     bind_context(plugin, plugin.ctx, cfg)
-    asyncio.run(plugin.on_config_update("self", cfg, "0.3.0"))
+    asyncio.run(plugin.on_config_update("self", cfg, "0.4.0"))
     assert (dist / "index.html").read_text(encoding="utf-8") == OFFICIAL_HTML
     assert not (dist / "fonts" / "endfield").exists()
 
@@ -430,3 +430,275 @@ def test_css_assets_exist_and_nonempty():
     assert "--ef-accent" in css
     fonts = (PLUGIN_DIR / "theme" / "fonts.css").read_text(encoding="utf-8")
     assert "font-stretch: 50% 125%" in fonts, "Saira 可变宽度轴声明缺失"
+
+
+# ---------------------------------------------------------------- 0.4.0 六维变体
+
+def test_resolve_six_dims_defaults(module):
+    """新三维默认值=现状：0.3.0 用户升级后外观零变化。"""
+    v = module.resolve("lime", "neutral", "compact")
+    assert v["cut"] == "standard" and v["cutK"] == 1.0
+    assert v["ground"] == "contours"
+    assert v["motion"] == "full"
+    # 默认切角数值与 0.3.0 硬编码一致
+    pre = module.build_preamble(v)
+    assert "--ef-cut-sm:7px" in pre
+    assert "--ef-cut-btn:8px" in pre
+    assert "--ef-cut-panel:26px" in pre
+
+
+def test_resolve_cut_scaling(module):
+    """cut 三档缩放切角：tight ×0.6 / standard ×1 / wide ×1.6。"""
+    tight = module.build_preamble(module.resolve("lime", "neutral", "compact", cut="tight"))
+    wide = module.build_preamble(module.resolve("lime", "neutral", "compact", cut="wide"))
+    assert "--ef-cut-k:0.6" in tight
+    assert "--ef-cut-sm:4.2px" in tight
+    assert "--ef-cut-k:1.6" in wide
+    assert "--ef-cut-sm:11.2px" in wide
+    assert "--ef-cut-panel:41.6px" in wide
+
+
+def test_resolve_invalid_new_dims_fall_back(module):
+    v = module.resolve("lime", "neutral", "compact", cut="huge", ground="dots", motion="wild")
+    assert v["cut"] == "standard"
+    assert v["ground"] == "contours"
+    assert v["motion"] == "full"
+
+
+def test_variant_attrs(module):
+    """html 属性只带 ground/motion（cut 走 CSS 变量，不需要属性）。"""
+    v = module.resolve("lime", "neutral", "compact", ground="grid", motion="calm")
+    attrs = module.variant_attrs(v)
+    assert 'data-ef-ground="grid"' in attrs
+    assert 'data-ef-motion="calm"' in attrs
+    assert "data-ef-cut" not in attrs
+
+
+def test_css_ground_variants():
+    """ground 四态：contours 默认 / grid 网格 / hatch 斜线纹 / plain 无。"""
+    css = (PLUGIN_DIR / "theme" / "endfield-theme.css").read_text(encoding="utf-8")
+    assert "html[data-ef-ground='grid'] [data-observation-shell='true']::before" in css
+    assert "html[data-ef-ground='hatch'] [data-observation-shell='true']::before" in css
+    assert "html[data-ef-ground='plain'] [data-observation-shell='true']::before" in css
+    assert "3rem 3rem" in css, "grid 网格间距"
+    assert "var(--ef-hatch)" in css, "hatch 斜线纹变量"
+    assert "display: none" in css.split("data-ef-ground='plain'")[1][:200], "plain 应隐藏底纹"
+    # hatch 变量由 preamble 提供
+    from importlib import import_module
+    ev = import_module("endfield_theme.et_variants")
+    pre = ev.build_preamble(ev.resolve("lime", "neutral", "compact"))
+    assert "--ef-hatch:repeating-linear-gradient(-45deg" in pre
+
+
+def test_css_motion_calm():
+    """motion=calm：压掉入场动画，保留退出与回应。"""
+    css = (PLUGIN_DIR / "theme" / "endfield-theme.css").read_text(encoding="utf-8")
+    assert "html[data-ef-motion='calm'] [role='dialog'][data-state='open']" in css
+    assert "html[data-ef-motion='calm'] [data-dashboard-toast='true'][data-state='open']" in css
+    assert "html[data-ef-motion='calm'] [role='tabpanel'][data-state='active']" in css
+    # calm 块只压 open/active（入场），不压 closed（退出）
+    calm_block = css.split("html[data-ef-motion='calm']")[1].split("@media (prefers-reduced-motion: reduce)")[0]
+    assert "data-state='closed'" not in calm_block, "calm 不应压退出动画"
+
+
+def test_config_schema_six_dims(module):
+    """配置页六开关中文化齐全（含新三维的 label/hint/choice 双语）。"""
+    from maibot_sdk.config import generate_plugin_config_schema
+
+    schema = generate_plugin_config_schema(module.EndfieldThemeConfig)
+    fields = schema["sections"]["appearance"]["fields"]
+    expected = {
+        "cut": ("切角幅度", {"tight": "收紧（×0.6）", "standard": "标准（×1）", "wide": "放宽（×1.6）"}),
+        "ground": ("底纹", {"contours": "等高线", "grid": "网格", "hatch": "斜线纹", "plain": "无"}),
+        "motion": ("动效", {"full": "全开", "calm": "平静"}),
+    }
+    for name, (label, choices) in expected.items():
+        field = fields[name]
+        assert field["label"] == label, f"{name} 标签未中文化"
+        zh = field["i18n"]["zh-CN"]
+        assert zh["label"] == label
+        assert zh.get("hint"), f"{name} 缺 hint"
+        for choice, text in choices.items():
+            assert zh[f"choice:{choice}"] == text, f"{name}/{choice} 中文显示名不符"
+            assert field["i18n"]["en-US"][f"choice:{choice}"], f"{name}/{choice} 缺英文对照"
+
+
+# ---------------------------------------------------------------- 0.4.0 官方风格让位
+
+def test_stylegate_all_rules_gated(module):
+    """让位门控：每条规则选择器都带 millennium/future-retro 排除。
+
+    反向验证：漏掉任何一条规则，千禧/复古下主题就会部分生效。
+    """
+    import re
+    from importlib import import_module
+    sg = import_module("endfield_theme.et_stylegate")
+
+    css = (PLUGIN_DIR / "theme" / "endfield-theme.css").read_text(encoding="utf-8")
+    gated = sg.gate_css(css)
+
+    def scan_rules(text):
+        text = re.sub(r"/\*.*?\*/", "", text, flags=re.S)
+        out, i, n = [], 0, len(text)
+        while i < n:
+            brace = text.find("{", i)
+            if brace < 0:
+                break
+            head = text[i:brace].strip()
+            depth, j = 1, brace + 1
+            while j < n and depth:
+                if text[j] == "{":
+                    depth += 1
+                elif text[j] == "}":
+                    depth -= 1
+                j += 1
+            is_skip = bool(re.match(r"@(keyframes|-webkit-keyframes|font-face|property)", head, re.I))
+            is_cond = bool(re.match(r"@(media|supports|container|layer)", head, re.I))
+            if is_skip:
+                i = j
+                continue
+            if is_cond:
+                out.extend(scan_rules(text[brace + 1:j - 1]))
+            elif head and not head.startswith("@"):
+                out.append(head)
+            i = j
+        return out
+
+    heads = scan_rules(gated)
+    assert len(heads) > 150, "规则数异常，扫描器可能失效"
+    for h in heads:
+        for part in h.split(","):
+            assert sg.GATE in part, f"漏网选择器：{part.strip()[:70]}"
+    # 声明体逐字节不变（门控只动选择器）
+    bodies = lambda t: re.findall(r"\{([^{}]*)\}", re.sub(r"/\*.*?\*/", "", t, flags=re.S))
+    assert bodies(css) == bodies(gated), "门控改动了声明体"
+    # keyframes 保留（引用它们的规则已被门控）
+    assert "@keyframes ef-power-on" in gated
+
+
+def test_stylegate_preamble_gated(module):
+    from importlib import import_module
+    sg = import_module("endfield_theme.et_stylegate")
+    pre = sg.gate_preamble(module.build_preamble(module.resolve("lime", "neutral", "compact")))
+    assert "html" + sg.GATE + "{" in pre
+    assert "html.dark" + sg.GATE + "{" in pre
+    assert pre.count(sg.GATE) == 2
+
+
+def test_injected_style_gated(env):
+    """注入产物整体门控：千禧/复古下 100% 官方原样。"""
+    plugin, dist = env
+    _apply(plugin)
+    html = (dist / "index.html").read_text(encoding="utf-8")
+    from importlib import import_module
+    sg = import_module("endfield_theme.et_stylegate")
+    style = html.split('id="endfield-theme-style"')[1].split("</style>")[0]
+    assert sg.GATE in style
+    assert "html" + sg.GATE + "{" in style, "preamble 未门控"
+    # 字体声明（@font-face）跳过门控是允许的——字体无副作用
+    assert "@font-face" in style
+
+
+# ---------------------------------------------------------------- 0.4.0 JS 反馈层
+
+def test_fx_js_exists_and_syntax():
+    """fx.js 存在、非空、node 语法检查通过（若 node 可用）。"""
+    import shutil
+    import subprocess
+
+    fx = PLUGIN_DIR / "theme" / "endfield-fx.js"
+    assert fx.is_file() and fx.stat().st_size > 3000
+    src = fx.read_text(encoding="utf-8")
+    # 操作反馈四件套都在
+    assert "flashDone" in src
+    assert "ef-is-done" in src
+    assert "ghostWipeOut" in src
+    assert "flipFrozen" in src or "frozenRows" in src
+    assert "startViewTransition" in src
+    # 静止条件齐全
+    assert "prefers-reduced-motion: reduce" in src
+    assert "efMotion === 'calm'" in src or 'efMotion === "calm"' in src
+    assert "millennium" in src and "future-retro" in src
+    assert "no-animations" in src
+    # 展示页语法不进后台
+    assert "scramble" not in src, "乱码落定不应进后台"
+    assert "wireParallax" not in src, "指针视差不应进后台"
+    assert "wireReadouts" not in src
+    node = shutil.which("node")
+    if node:
+        r = subprocess.run([node, "--check", str(fx)], capture_output=True, text=True)
+        assert r.returncode == 0, f"fx.js 语法错误：{r.stderr}"
+
+
+def test_fx_injected_and_removed(env):
+    """JS 注入-移除闭环：script 标签 + 资产分发 + 卸载清理。"""
+    plugin, dist = env
+    _apply(plugin)
+    html = (dist / "index.html").read_text(encoding="utf-8")
+    assert 'id="endfield-theme-fx"' in html
+    assert html.count('id="endfield-theme-fx"') == 1
+    assert 'src="/fonts/endfield/endfield-fx.js"' in html
+    assert "defer" in html.split('id="endfield-theme-fx"')[1].split(">")[0]
+    fx_dist = dist / "fonts" / "endfield" / "endfield-fx.js"
+    assert fx_dist.is_file()
+    assert fx_dist.read_bytes() == (PLUGIN_DIR / "theme" / "endfield-fx.js").read_bytes()
+    # 幂等
+    _apply(plugin)
+    assert (dist / "index.html").read_text(encoding="utf-8") == html
+    # 卸载还原
+    asyncio.run(plugin.on_unload())
+    assert (dist / "index.html").read_text(encoding="utf-8") == OFFICIAL_HTML
+    assert not (dist / "fonts" / "endfield").exists()
+
+
+def test_html_variant_attrs_lifecycle(env):
+    """ground/motion 属性写进 <html>，热更新换值，卸载摘除。"""
+    plugin, dist = env
+    _apply(plugin)
+    html = (dist / "index.html").read_text(encoding="utf-8")
+    assert 'data-ef-ground="contours"' in html
+    assert 'data-ef-motion="full"' in html
+    # 属性在 <html> 标签上，不在别处
+    import re
+    tag = re.search(r"<html\b[^>]*>", html).group(0)
+    assert "data-ef-ground" in tag
+    # 热更新换 ground/motion
+    _set_config(plugin, ground="grid", motion="calm")
+    asyncio.run(plugin.on_config_update("self", {}, "0.4.0"))
+    html2 = (dist / "index.html").read_text(encoding="utf-8")
+    assert 'data-ef-ground="grid"' in html2
+    assert 'data-ef-motion="calm"' in html2
+    assert 'data-ef-ground="contours"' not in html2, "旧 ground 值残留"
+    tag2 = re.search(r"<html\b[^>]*>", html2).group(0)
+    assert tag2.count("data-ef-ground") == 1, "html 标签上 ground 属性重复"
+    assert tag2.count("data-ef-motion") == 1
+    # 卸载摘除
+    asyncio.run(plugin.on_unload())
+    html3 = (dist / "index.html").read_text(encoding="utf-8")
+    assert html3 == OFFICIAL_HTML
+    assert "data-ef-" not in html3
+
+
+def test_css_js_feedback_parts():
+    """JS 配套 CSS：完成黄穿 / 删行擦出 / view-transition 层抑制。"""
+    css = (PLUGIN_DIR / "theme" / "endfield-theme.css").read_text(encoding="utf-8")
+    assert "@keyframes ef-done" in css
+    assert ".dashboard-button--default.ef-is-done::before" in css
+    assert "translateX(101%)" in css, "黄穿应穿过按钮右侧"
+    assert ".ef-out-wipe" in css
+    assert "html.ef-theming::view-transition-old(root)" in css
+    assert "html.ef-theming::view-transition-new(root)" in css
+    assert "::view-transition-old(root)" in css
+
+
+def test_default_appearance_unchanged(env):
+    """默认配置注入产物 = 0.3.0 语义：cut×1 / contours / full，外观零变化。"""
+    plugin, dist = env
+    _apply(plugin)
+    html = (dist / "index.html").read_text(encoding="utf-8")
+    assert "--ef-cut-k:1.0" in html
+    assert "--ef-cut-sm:7px" in html
+    assert 'data-ef-ground="contours"' in html
+    assert 'data-ef-motion="full"' in html
+    # ground 变体规则存在但默认不激活（contours 无属性选择器分支）
+    assert "html[data-ef-ground='grid']" in html

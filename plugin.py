@@ -1,8 +1,11 @@
-"""终末地风格 WebUI 主题：往 dashboard 的 index.html 注入样式与字体。
+"""终末地风格 WebUI 主题：往 dashboard 的 index.html 注入样式、字体与反馈层 JS。
 
 L2 注入式：不改 JS 构建产物、不改资产文件名，只注入一段受控样式块
-（token 覆盖 + 部件皮肤）和一个字体 link。dashboard 升级后重新注入即可。
-三个外观开关 accent / paper / density 在 WebUI 插件配置页调整，热更新即时重注入。
+（token 覆盖 + 部件皮肤）、一个字体 link、一个反馈层 script，
+以及 <html> 上的 ground/motion 变体属性。dashboard 升级后重新注入即可。
+六个外观开关 accent / paper / density / cut / ground / motion 在 WebUI
+插件配置页调整，热更新即时重注入。官方风格让位：千禧/未来复古下
+全部 CSS 规则经选择器门控失效，切回现代即时恢复，无需重启。
 """
 
 import logging
@@ -15,10 +18,12 @@ from maibot_sdk.types import CONFIG_RELOAD_SCOPE_SELF
 
 try:
     from .et_config import SUPPORTED_CONFIG_VERSION, EndfieldThemeConfig
-    from .et_variants import build_preamble, resolve
+    from .et_stylegate import gate_css, gate_preamble
+    from .et_variants import build_preamble, resolve, variant_attrs
 except ImportError:  # 平铺加载兜底（真机 Runner 是包式加载）
     from et_config import SUPPORTED_CONFIG_VERSION, EndfieldThemeConfig
-    from et_variants import build_preamble, resolve
+    from et_stylegate import gate_css, gate_preamble
+    from et_variants import build_preamble, resolve, variant_attrs
 
 # 配置模型在 et_config.py：PluginSectionConfig 内含 config_version 字段，
 # 默认值取 SUPPORTED_CONFIG_VERSION，与 _manifest.json 的 version 保持同步。
@@ -33,17 +38,24 @@ logger = logging.getLogger(__name__)
 
 STYLE_ID = "endfield-theme-style"
 FONT_LINK_ID = "endfield-theme-fonts"
+FX_SCRIPT_ID = "endfield-theme-fx"
 STYLE_RE = re.compile(rf"\n?<style id=\"{STYLE_ID}\"[^>]*>.*?</style>", re.S)
 FONT_LINK_RE = re.compile(rf"\n?<link id=\"{FONT_LINK_ID}\"[^>]*>")
+FX_SCRIPT_RE = re.compile(rf"\n?<script id=\"{FX_SCRIPT_ID}\"[^>]*>.*?</script>", re.S)
+# html 标签上的变体属性（ground/motion），卸载/停用时逐个摘除
+HTML_ATTR_RE = re.compile(r"\s+data-ef-(?:ground|motion)=\"[^\"]*\"")
+HTML_TAG_RE = re.compile(r"<html\b[^>]*>", re.I)
 
 ASSET_DIR = Path(__file__).parent / "theme"
 CSS_FILE = ASSET_DIR / "endfield-theme.css"
 FONTS_CSS_FILE = ASSET_DIR / "fonts.css"
+FX_JS_FILE = ASSET_DIR / "endfield-fx.js"
 FONTS_SRC = Path(__file__).parent / "fonts"
 CONTOURS_SRC = ASSET_DIR / "contours"
-# 随主题分发进 dist 的静态资产（字体 + 等高线 SVG），卸载时一并清理
+# 随主题分发进 dist 的静态资产（字体 + 等高线 SVG + 反馈层 JS），卸载时一并清理
 CONTOUR_NAMES = ("contour-a.svg", "contour-b.svg")
-_DIST_ASSET_NAMES = {"Saira.ttf", "Saira-OFL.txt", "fonts.css", *CONTOUR_NAMES}
+FX_JS_NAME = "endfield-fx.js"
+_DIST_ASSET_NAMES = {"Saira.ttf", "Saira-OFL.txt", "fonts.css", FX_JS_NAME, *CONTOUR_NAMES}
 
 
 class EndfieldThemePlugin(MaiBotPlugin):
@@ -72,15 +84,21 @@ class EndfieldThemePlugin(MaiBotPlugin):
 
     def _variant(self) -> dict:
         ap = self.config.appearance
-        return resolve(ap.accent, ap.paper, ap.density)
+        return resolve(ap.accent, ap.paper, ap.density, ap.cut, ap.ground, ap.motion)
 
     def _build_style(self, variant: dict) -> str:
-        """样式块：变量 preamble（压行内 token）+ 字体声明 + 部件皮肤。"""
+        """样式块：变量 preamble（压行内 token）+ 字体声明 + 部件皮肤。
+
+        全部经官方风格让位门控：千禧/未来复古下每条规则失效，
+        切回现代即时恢复（纯 CSS 选择器，不摘注入）。
+        """
         return (
-            build_preamble(variant)
-            + FONTS_CSS_FILE.read_text(encoding="utf-8")
-            + "\n"
-            + CSS_FILE.read_text(encoding="utf-8")
+            gate_preamble(build_preamble(variant))
+            + gate_css(
+                FONTS_CSS_FILE.read_text(encoding="utf-8")
+                + "\n"
+                + CSS_FILE.read_text(encoding="utf-8")
+            )
         )
 
     def _install_fonts(self, dist: Path) -> bool:
@@ -107,6 +125,12 @@ class EndfieldThemePlugin(MaiBotPlugin):
             if target.exists() and target.stat().st_size == item.stat().st_size:
                 continue
             target.write_bytes(item.read_bytes())
+        # 操作反馈层 JS（<script src="/fonts/endfield/endfield-fx.js">）
+        if FX_JS_FILE.is_file():
+            target = dst_dir / FX_JS_NAME
+            src_bytes = FX_JS_FILE.read_bytes()
+            if not target.exists() or target.read_bytes() != src_bytes:
+                target.write_bytes(src_bytes)
         return True
 
     def _uninstall_fonts(self, dist: Path) -> None:
@@ -121,6 +145,29 @@ class EndfieldThemePlugin(MaiBotPlugin):
         except OSError:
             pass
 
+    @staticmethod
+    def _strip_injections(html: str) -> str:
+        """摘掉本插件的全部注入：style / font link / fx script / html 变体属性。"""
+        html = STYLE_RE.sub("", html)
+        html = FONT_LINK_RE.sub("", html)
+        html = FX_SCRIPT_RE.sub("", html)
+        # 变体属性只可能出现在 <html> 标签上，限定范围摘除
+        m = HTML_TAG_RE.search(html)
+        if m:
+            tag = HTML_ATTR_RE.sub("", m.group(0))
+            html = html[:m.start()] + tag + html[m.end():]
+        return html
+
+    @staticmethod
+    def _set_html_attrs(html: str, attrs: str) -> str:
+        """把变体属性写进 <html> 标签（先摘旧值再写新值）。"""
+        m = HTML_TAG_RE.search(html)
+        if not m:
+            return html
+        tag = HTML_ATTR_RE.sub("", m.group(0))
+        tag = tag[:-1] + attrs + ">"
+        return html[:m.start()] + tag + html[m.end():]
+
     def _apply(self) -> None:
         try:
             index = self._dist_index()
@@ -132,7 +179,7 @@ class EndfieldThemePlugin(MaiBotPlugin):
             return
 
         html = index.read_text(encoding="utf-8")
-        html_without = FONT_LINK_RE.sub("", STYLE_RE.sub("", html))
+        html_without = self._strip_injections(html)
 
         if not self.config.plugin.enabled:
             if html_without != html:
@@ -151,6 +198,7 @@ class EndfieldThemePlugin(MaiBotPlugin):
             f"{self._build_style(variant)}</style>"
         )
         font_link = ""
+        fx_script = ""
         if self._install_fonts(index.parent):
             font_link = f'\n<link id="{FONT_LINK_ID}" rel="stylesheet" href="/fonts/endfield/fonts.css">'
             # fonts.css 也要进 dist（@font-face 声明）
@@ -158,15 +206,23 @@ class EndfieldThemePlugin(MaiBotPlugin):
             src_css = FONTS_CSS_FILE.read_text(encoding="utf-8")
             if not dst_css.exists() or dst_css.read_text(encoding="utf-8") != src_css:
                 dst_css.write_text(src_css, encoding="utf-8")
-        updated = html_without.replace("</head>", f"{font_link}{style_tag}</head>", 1)
+            # 反馈层 JS：defer 保证在 dashboard 主脚本之后执行
+            fx_script = (
+                f'\n<script id="{FX_SCRIPT_ID}" defer '
+                f'src="/fonts/endfield/{FX_JS_NAME}" '
+                f'data-plugin="github.orge-8.endfield-theme"></script>'
+            )
+        updated = html_without.replace("</head>", f"{font_link}{style_tag}{fx_script}</head>", 1)
+        updated = self._set_html_attrs(updated, variant_attrs(variant))
 
         if updated == html:
             self.ctx.logger.info("[endfield-theme] 注入内容已是最新")
             return
         index.write_text(updated, encoding="utf-8")
         self.ctx.logger.info(
-            "[endfield-theme] 主题已注入（accent=%s paper=%s density=%s）",
+            "[endfield-theme] 主题已注入（accent=%s paper=%s density=%s cut=%s ground=%s motion=%s）",
             variant["accent"], variant["paper"], variant["density"],
+            variant["cut"], variant["ground"], variant["motion"],
         )
 
     def _remove(self) -> bool:
@@ -177,7 +233,7 @@ class EndfieldThemePlugin(MaiBotPlugin):
         if not index.is_file():
             return False
         html = index.read_text(encoding="utf-8")
-        cleaned = FONT_LINK_RE.sub("", STYLE_RE.sub("", html))
+        cleaned = self._strip_injections(html)
         self._uninstall_fonts(index.parent)
         if cleaned == html:
             return False

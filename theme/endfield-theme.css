@@ -82,7 +82,7 @@ body {
 [data-observation-icon-key='true'][data-active='true'] {
   background: var(--ef-accent) !important;
   color: #161616 !important;
-  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 5px), calc(100% - 5px) 100%, 0 100%);
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - var(--ef-cut-badge)), calc(100% - var(--ef-cut-badge)) 100%, 0 100%);
 }
 /* 分区标题：// 眉标风格（宽体大写小字） */
 [data-observation-section-title='true'] {
@@ -148,6 +148,24 @@ body {
     -webkit-mask: url('/fonts/endfield/contour-a.svg') right -12rem top -4rem / 34rem auto no-repeat;
     mask: url('/fonts/endfield/contour-a.svg') right -12rem top -4rem / 34rem auto no-repeat;
   }
+}
+/* 底纹变体（ground）：html[data-ef-ground] 由注入器写在 <html> 上。
+   grid=极淡网格只在右上角晕开；hatch=斜线纹两角渐隐；plain=无底纹。 */
+html[data-ef-ground='grid'] [data-observation-shell='true']::before {
+  background:
+    linear-gradient(var(--ef-contour) 1px, transparent 1px) 0 0 / 3rem 3rem,
+    linear-gradient(90deg, var(--ef-contour) 1px, transparent 1px) 0 0 / 3rem 3rem;
+  -webkit-mask: radial-gradient(ellipse at 85% 10%, #000, transparent 70%);
+  mask: radial-gradient(ellipse at 85% 10%, #000, transparent 70%);
+}
+html[data-ef-ground='hatch'] [data-observation-shell='true']::before {
+  background: var(--ef-hatch);
+  opacity: 0.4;
+  -webkit-mask: linear-gradient(200deg, #000, transparent 35%), linear-gradient(20deg, #000, transparent 25%);
+  mask: linear-gradient(200deg, #000, transparent 35%), linear-gradient(20deg, #000, transparent 25%);
+}
+html[data-ef-ground='plain'] [data-observation-shell='true']::before {
+  display: none;
 }
 
 /* ============ 3. 按钮：切角=可点击，黄色擦入 ============ */
@@ -375,7 +393,7 @@ html.dark [data-observation-key='true']:focus-visible {
   background: var(--ef-accent) !important;
   color: #161616 !important;
   font-weight: 700 !important;
-  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 5px), calc(100% - 5px) 100%, 0 100%);
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - var(--ef-cut-badge)), calc(100% - var(--ef-cut-badge)) 100%, 0 100%);
 }
 
 /* ============ 4c. 麦麦观察首页部件 ============ */
@@ -497,7 +515,7 @@ html.dark [data-observation-period='true'] > button:focus-visible {
 [data-observation-card-action='true'] {
   border-radius: 0 !important;
   color: var(--ef-ink2) !important;
-  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 4px), calc(100% - 4px) 100%, 0 100%);
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - var(--ef-cut-action)), calc(100% - var(--ef-cut-action)) 100%, 0 100%);
 }
 [data-observation-card-action='true']:hover {
   background: var(--ef-accent) !important;
@@ -812,7 +830,7 @@ html.dark input:focus-visible, html.dark textarea:focus-visible {
 }
 /* 主徽章 = 编号标签语义 */
 .bg-primary.text-primary-foreground {
-  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 5px), calc(100% - 5px) 100%, 0 100%);
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - var(--ef-cut-badge)), calc(100% - var(--ef-cut-badge)) 100%, 0 100%);
 }
 
 /* ============ 8. 对话框/浮层：直角细线，遮罩用墨色 ============ */
@@ -1113,6 +1131,22 @@ html.dark .animate-spin.border-primary {
     transition: background-color 280ms var(--ef-mech), color 280ms var(--ef-mech);
   }
 }
+/* 动效变体（motion=calm）：去掉「打开页面/打开浮层」的入场，
+   保留回应操作（hover/按下/切换）与退出。给整天在用的工具。
+   退出动画保留在 no-preference 块里，这里只压入场。 */
+@media (prefers-reduced-motion: no-preference) {
+  html[data-ef-motion='calm'] [role='dialog'][data-state='open'],
+  html[data-ef-motion='calm'] [role='alertdialog'][data-state='open'],
+  html[data-ef-motion='calm'] [role='menu'][data-state='open'],
+  html[data-ef-motion='calm'] [role='listbox'][data-state='open'],
+  html[data-ef-motion='calm'] [data-radix-popper-content-wrapper] [data-state='open'],
+  html[data-ef-motion='calm'] [data-dashboard-toast='true'][data-state='open'],
+  html[data-ef-motion='calm'] [role='status'][data-state='open'],
+  html[data-ef-motion='calm'] [role='tabpanel'][data-state='active'],
+  html[data-ef-motion='calm'] [data-state='open'][class*='bg-black'] {
+    animation: none !important;
+  }
+}
 /* 系统减少动态效果：全部静止 */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
@@ -1155,4 +1189,52 @@ html.dark .animate-spin.border-primary {
   [data-mobile-tab='true'] {
     border-radius: 0 !important;
   }
+}
+
+/* ============ 17. JS 反馈层配套（endfield-fx.js） ============ */
+
+/* 完成黄穿：保存成功后黄色从左穿过按钮一次（600ms mech）。
+   复用主按钮 ::before（悬停擦入层），is-done 期间改为平移穿过：
+   -101% → 0（45%~60% 停留）→ +101%。文字临时反色保证可读。
+   触屏主按钮 ::before 被 display:none（第 3 节），这里恢复。 */
+@keyframes ef-done {
+  0% { transform: translateX(-101%); }
+  45%, 60% { transform: translateX(0); }
+  100% { transform: translateX(101%); }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .dashboard-button--default.ef-is-done {
+    color: #161616 !important;
+  }
+  .dashboard-button--default.ef-is-done::before {
+    display: block;
+    transform: translateX(-101%);
+    transition: none;
+    animation: ef-done 600ms var(--ef-mech) both;
+  }
+  /* 删行擦出（非 React 场景兜底；React 常态走 JS FLIP 补位） */
+  .ef-out-wipe {
+    animation: ef-wipe-out 200ms var(--ef-mech) both !important;
+  }
+}
+
+/* 深浅切换揭幕：fx.js 用 WAAPI 在 ::view-transition-new(root) 上画圆。
+   这里压掉默认交叉淡化（旧层静止、新层不做默认动画），
+   并禁止 view-transition 期间的页面级快门（本主题不做导航快门）。
+   ef-theming 由 fx.js 在过渡期间挂到 html 上。 */
+html.ef-theming::view-transition-old(root),
+html.ef-theming::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+html.ef-theming::view-transition-old(root) {
+  opacity: 1;
+}
+/* 官方侧边栏过渡不经 ef-theming（被 fx.js 接管后统一挂标记），
+   但为防万一：任何 view-transition 期间旧层都不淡出。 */
+::view-transition-old(root) {
+  animation: none;
+}
+::view-transition-new(root) {
+  animation: none;
 }

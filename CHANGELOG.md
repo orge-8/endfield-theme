@@ -1,5 +1,55 @@
 # Changelog
 
+## 0.4.0 (2026-11-22)
+
+对照 endfield-ui skill 补齐三类缺口（grill 决策落定）：官方风格让位、
+六维变体补全、操作反馈 JS 层。默认值 = 0.3.0 现状，升级零外观变化。
+
+- **官方风格让位**（新增 et_stylegate.py）：
+  - WebUI 界面风格选「千禧」/「未来复古」时主题 100% 失效，界面回官方原样；
+    切回「现代」即时恢复，无需重启。
+  - 实现：纯 CSS 选择器门控——每条规则加
+    `html:not([data-dashboard-style='millennium']):not([data-dashboard-style='future-retro'])`，
+    不摘注入。preamble 变量块同样门控（让位时行内 token 不再被压）。
+  - 手写 CSS 扫描器：条件 at-rule 递归、keyframes/font-face 跳过、
+    逗号列表逐段门控；212 条规则头全门控、232 个声明体逐字节不变（测试断言）。
+- **六维变体**（et_variants.py / et_config.py）：
+  - 新增 cut（tight ×0.6 / standard ×1 / wide ×1.6）：切角变量全部改缩放，
+    硬编码 5px/4px 换 `--ef-cut-badge`/`--ef-cut-action`。
+  - 新增 ground（contours/grid/hatch/plain）：grid=1px 网格 3rem + 径向 mask，
+    hatch=`--ef-hatch` 斜线纹 + 双 linear-gradient mask，plain=隐藏底纹。
+  - 新增 motion（full/calm）：calm 压掉入场动画（对话框/浮层/提示条/标签页 open），
+    保留退出与回应（hover/按下/切换）。
+  - ground/motion 经 `variant_attrs()` 写到 `<html>` 属性，CSS 按属性选择器消费；
+    卸载/停用逐个摘除。
+  - 配置页三新开关中文化齐全（label/hint/choice 双语）。
+- **操作反馈 JS 层**（新增 theme/endfield-fx.js，约 9KB）：
+  - flashDone：保存成功（「配置已保存」toast）→ 黄色穿按钮一次 600ms mech +
+    标签「保存」临时变「已保存」1200ms（只动文本节点，不碰 React 结构）。
+  - 删行补位：pointerdown/keydown 冻结兄弟行几何 → React 移除 TR 后
+    FLIP translateY 200ms snap（MutationObserver 回调时布局已重算，
+    几何必须提前冻结——这是关键设计点）。
+  - toast 卸载兜底：Radix 受控 toast 直接卸载时克隆一份补完 160ms 擦出
+    （aria-hidden + data-ef-ghost，不进读屏、不被二次识别）。
+  - 深浅揭幕：统一接管三个入口（侧边栏按钮/外观页分段控件/auth 页按钮），
+    click 捕获拦截 → startViewTransition 圆形揭幕 420ms MECH。
+    官方侧边栏自带 500ms ease-in-out 软曲线被替代（WAAPI 优先级高于 CSS，
+    无法只压曲线）；四语 aria-label 匹配（zh/en/ja/ko）。
+  - 静止条件：prefers-reduced-motion / motion=calm / 千禧/复古让位 /
+    no-animations / Edge / 无 View Transitions API，任一满足即全部不动。
+  - 砍掉展示页语法：乱码落定/指针视差/分段圆盘不进后台。
+  - CSS 配套（第 17 节）：ef-done 关键帧 + ef-is-done 黄穿 + ef-out-wipe +
+    view-transition 层抑制（旧层不淡出、新层不做默认动画）。
+- **plugin.py 注入闭环扩展**：
+  - 新增 `<script id="endfield-theme-fx" defer src="/fonts/endfield/endfield-fx.js">`
+    注入与正则清理；fx.js 随字体资产分发进 dist，卸载一并清理。
+  - `<html>` 变体属性注入/摘除（限定 html 标签范围，不误伤 body 内同名属性）。
+  - `_build_style` 接入 gate_preamble + gate_css；日志行带六维。
+- 测试：26 → 41 用例（+15：六维默认/缩放/回退/属性、ground 四态、calm 语义、
+  配置页六开关、门控无漏网/声明体不变/preamble、JS 存在/语法/注入-移除闭环、
+  html 属性生命周期、CSS 反馈配套、默认外观零变化）。
+- 门禁：PASS 3 / SKIP 0 / FAIL 0（静态 35 PASS 1 WARN 预期）。
+
 ## 0.3.0 (2026-11-22)
 
 补齐「麦麦观察」首页覆盖（用户反馈「左侧的麦麦观察页没动」）。

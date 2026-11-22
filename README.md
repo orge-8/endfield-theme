@@ -1,18 +1,22 @@
 # endfield-theme
 
-终末地风格 WebUI 主题：L2 注入式设计语言覆盖，accent / paper / density 三个开关可配置。
+终末地风格 WebUI 主题：L2 注入式设计语言覆盖，六维外观可配置，官方风格让位，操作反馈动效。
 
 ## 功能
 
-- 往 dashboard 的 `index.html` 注入受控样式块与字体链接，不改 JS 构建产物；
+- 往 dashboard 的 `index.html` 注入受控样式块、字体链接与反馈层 JS，不改 JS 构建产物；
   dashboard 升级后重新注入即可，卸载/停用自动还原官方外观。
 - 设计语法：单一强调色只做填充（当前位置/可点击/醒目提醒）、切角=可点击、
   圆角/阴影/毛玻璃全零、1px 细线分区、宽体大写英文 + 粗体中文、
   侧栏深色命令栏、短硬机械动效、红色只给删除。
 - 明暗两套完整主题，跟随 WebUI 自身深浅色设置。
-- 等高线底纹：主区右上/左下两角各一片（墨色 18%，不闭合），随明暗自动适配。
+- 底纹四态：等高线（默认，主区两角墨色 18% 不闭合）/ 网格 / 斜线纹 / 无。
 - 机械动效：对话框通电展开、提示条擦入擦掉、浮层通电、标签页逐行亮起、
   表格行右移+左色条、开关/分段 280ms 硬停；系统「减少动态效果」时全静止。
+- 操作反馈（JS 层）：保存成功黄穿按钮+「已保存」临时文案、删行下方行补位、
+  提示条卸载擦出兜底、深浅切换圆形揭幕（420ms 机械曲线，统一接管三个入口）。
+- **官方风格让位**：WebUI 界面风格选「千禧」或「未来复古」时主题 100% 失效
+  （纯 CSS 选择器门控），切回「现代」即时恢复，无需重启。
 - Saira 可变字体自托管（SIL OFL 1.1，许可证随附），中文落 Noto Sans SC / 微软雅黑。
 
 ## 安装
@@ -26,12 +30,16 @@
 | 配置节 | 字段 | 默认值 | 说明 |
 |---|---|---|---|
 | `[plugin]` | `enabled` | `true` | 是否启用主题（关闭即移除注入，恢复官方外观） |
-| `[plugin]` | `config_version` | `0.3.0` | 配置版本，升级时触发归一化重建 |
+| `[plugin]` | `config_version` | `0.4.0` | 配置版本，升级时触发归一化重建 |
 | `[appearance]` | `accent` | `lime` | 强调色：yellow(标准黄) / lime(青柠) / ice(冰蓝) / amber(琥珀) |
 | `[appearance]` | `paper` | `neutral` | 纸色：neutral(中性灰白) / warm(暖米色) / cool(冷青灰) |
 | `[appearance]` | `density` | `compact` | 密度：compact(紧凑) / standard(标准) / roomy(宽松) |
+| `[appearance]` | `cut` | `standard` | 切角幅度：tight(收紧×0.6) / standard(标准×1) / wide(放宽×1.6) |
+| `[appearance]` | `ground` | `contours` | 底纹：contours(等高线) / grid(网格) / hatch(斜线纹) / plain(无) |
+| `[appearance]` | `motion` | `full` | 动效：full(全开) / calm(平静，去入场保留回应/退出) |
 
-三个外观开关在 WebUI 插件配置页调整，保存后即时重注入，刷新页面生效。
+六个外观开关在 WebUI 插件配置页调整，保存后即时重注入，刷新页面生效。
+默认值 = 0.3.0 现状，升级零外观变化。
 配置页标签与下拉选项均为中文（zh-CN，另附 en-US 对照）；配置值本身保持英文枚举。
 `config.toml` 由 Runner 自动生成，不要手工提交；写入时不能带 UTF-8 BOM。
 
@@ -50,11 +58,12 @@ manifest `capabilities` 声明：`declarative_basic`（WebUI 配置页基础声�
 
 | 现象 | 原因与处置 |
 |---|---|
-| 刷新后仍是官方外观 | 未完整重启 MaiBot；或浏览器缓存，强制刷新（Ctrl+F5） |
+| 刷新后仍是官方外观 | 未完整重启 MaiBot；或浏览器缓存，强制刷新（Ctrl+F5）；或界面风格选了千禧/未来复古（主题让位，切回现代即恢复） |
 | 日志「找不到 dashboard 的 index.html」 | maibot-dashboard 资源包未安装，按主程序提示安装 |
 | 日志「无法定位 dashboard dist」 | 同上，或 dashboard 包损坏 |
 | 字体没变化 | Saira 只覆盖拉丁字符，中文本来就是黑体；检查 dist/fonts/endfield/ 是否有 Saira.ttf |
-| 想恢复官方外观 | 配置页关闭 enabled，或卸载插件（自动还原 index.html 并清理字体） |
+| 保存按钮没有黄穿反馈 | 检查 dist/fonts/endfield/endfield-fx.js 是否存在；动效设为 calm 或系统减少动态效果时反馈静止 |
+| 想恢复官方外观 | 配置页关闭 enabled，或卸载插件（自动还原 index.html 并清理字体与 JS） |
 | dashboard 升级后样式错位 | 选择器基于 dashboard 1.10.8 核对，大版本升级需跟进维护 |
 
 ## 开发
