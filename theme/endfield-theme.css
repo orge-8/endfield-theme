@@ -123,6 +123,32 @@ body {
   background: var(--ef-paper) !important;
   color: var(--ef-ink) !important;
 }
+/* 等高线底纹：右上/左下两角各一片，不闭合，墨色 18%（--ef-contour）。
+   铺在主区背景层（z-index:0），内容在其上；卡片/面板不透明会自然盖住，
+   只在页面留白处露出——背景质感只此一处，不做全页平铺。 */
+[data-observation-shell='true'] {
+  position: relative;
+}
+[data-observation-shell='true']::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: var(--ef-contour);
+  -webkit-mask:
+    url('/fonts/endfield/contour-a.svg') right -9rem top -7rem / 52rem auto no-repeat,
+    url('/fonts/endfield/contour-b.svg') left -6rem bottom -14rem / 40rem auto no-repeat;
+  mask:
+    url('/fonts/endfield/contour-a.svg') right -9rem top -7rem / 52rem auto no-repeat,
+    url('/fonts/endfield/contour-b.svg') left -6rem bottom -14rem / 40rem auto no-repeat;
+}
+@media (max-width: 719px) {
+  [data-observation-shell='true']::before {
+    -webkit-mask: url('/fonts/endfield/contour-a.svg') right -12rem top -4rem / 34rem auto no-repeat;
+    mask: url('/fonts/endfield/contour-a.svg') right -12rem top -4rem / 34rem auto no-repeat;
+  }
+}
 
 /* ============ 3. 按钮：切角=可点击，黄色擦入 ============ */
 .dashboard-button {
@@ -371,17 +397,130 @@ tbody tr:hover {
   ) !important;
 }
 
-/* ============ 15. 动效纪律 ============ */
-/* 入场短硬（snap），退出机械（mech）；禁弹跳缩放 */
-[data-state='open'][role='dialog'],
-[data-state='open'][role='alertdialog'] {
-  animation-duration: 280ms !important;
-  animation-timing-function: var(--ef-snap) !important;
+/* ============ 15. 动效：短、硬、机械 ============ */
+/* dashboard 原生用 tailwindcss-animate 的 zoom-in-95（缩放弹出，违反语法），
+   这里整套替换：出现=通电（从上往下展开，mech），退出=反方向关上（mech）。
+   关键帧不依赖原生 --tw-enter-* 变量，直接压掉 animate-in/animate-out。 */
+@keyframes ef-power-on {
+  from { opacity: 0; clip-path: inset(0 0 100% 0); }
+  to   { opacity: 1; clip-path: inset(-6px); }
 }
-[data-state='closed'][role='dialog'],
-[data-state='closed'][role='alertdialog'] {
-  animation-duration: 180ms !important;
-  animation-timing-function: var(--ef-mech) !important;
+@keyframes ef-power-off {
+  from { opacity: 1; clip-path: inset(-6px); }
+  to   { opacity: 0; clip-path: inset(0 0 100% 0); }
+}
+@keyframes ef-wipe-in {
+  from { clip-path: inset(0 100% 0 0); }
+  to   { clip-path: inset(0 -2% 0 0); }
+}
+@keyframes ef-wipe-out {
+  from { clip-path: inset(0 -2% 0 0); }
+  to   { clip-path: inset(0 0 0 100%); }
+}
+@keyframes ef-shutter-in {
+  from { clip-path: polygon(0 0, 0 0, -14% 100%, -14% 100%); }
+  to   { clip-path: polygon(0 0, 114% 0, 100% 100%, -14% 100%); }
+}
+@keyframes ef-come {
+  from { opacity: 0; transform: translateX(-14px); clip-path: inset(0 100% 0 0); }
+  to   { opacity: 1; transform: none; clip-path: inset(0 -2% 0 0); }
+}
+@keyframes ef-fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes ef-fade-out { from { opacity: 1; } to { opacity: 0; } }
+
+@media (prefers-reduced-motion: no-preference) {
+  /* 对话框/警报框：通电 280 开，180 关（mech，硬停像闸门） */
+  [role='dialog'][data-state='open'],
+  [role='alertdialog'][data-state='open'] {
+    animation: ef-power-on 280ms var(--ef-mech) both !important;
+  }
+  [role='dialog'][data-state='closed'],
+  [role='alertdialog'][data-state='closed'] {
+    animation: ef-power-off 180ms var(--ef-mech) both !important;
+  }
+  /* 移动端右侧抽屉：斜切快门推入 360（原生 slide-in-from-right 被压掉） */
+  [role='dialog'][data-state='open'][class*='slide-in-from-right'] {
+    animation: ef-shutter-in 360ms var(--ef-mech) both !important;
+  }
+  [role='dialog'][data-state='closed'][class*='slide-out-to-right'] {
+    animation: ef-wipe-out 200ms var(--ef-mech) both !important;
+  }
+  /* 遮罩：200ms 线性淡入淡出，不缩放 */
+  [data-state='open'][class*='bg-black'] {
+    animation: ef-fade-in 200ms linear both !important;
+  }
+  [data-state='closed'][class*='bg-black'] {
+    animation: ef-fade-out 160ms linear both !important;
+  }
+  /* 下拉/弹出/选择浮层：通电 200 开 / 120 关（小件更快） */
+  [role='menu'][data-state='open'],
+  [role='listbox'][data-state='open'],
+  [data-radix-popper-content-wrapper] [data-state='open'] {
+    animation: ef-power-on 200ms var(--ef-mech) both !important;
+  }
+  [role='menu'][data-state='closed'],
+  [role='listbox'][data-state='closed'],
+  [data-radix-popper-content-wrapper] [data-state='closed'] {
+    animation: ef-power-off 120ms var(--ef-mech) both !important;
+  }
+  /* 提示条：从左擦入 280，向右擦掉 160（黄旗已在第 9 节） */
+  [data-sonner-toast][data-state='open'],
+  [role='status'][data-state='open'] {
+    animation: ef-wipe-in 280ms var(--ef-mech) both !important;
+  }
+  [data-sonner-toast][data-state='closed'],
+  [role='status'][data-state='closed'] {
+    animation: ef-wipe-out 160ms var(--ef-mech) both !important;
+  }
+  /* 标签页内容切换：逐行亮起 320（snap），不做滚动触发入场 */
+  [role='tabpanel'][data-state='active'] {
+    animation: ef-come 320ms var(--ef-snap) both !important;
+  }
+  /* 表格行 hover：左边落下当前位置色条 + 整行右移 6px（记录行语法）。
+     色条用首格 ::before 绝对定位实现，不依赖 box-shadow（tr 上渲染不可靠）。 */
+  tbody tr {
+    transition: background-color 100ms var(--ef-mech), transform 200ms var(--ef-snap);
+  }
+  tbody tr:hover {
+    transform: translateX(6px);
+  }
+  tbody tr > td:first-child {
+    position: relative;
+  }
+  tbody tr > td:first-child::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    background: var(--ef-ink);
+    transform: scaleY(0);
+    transform-origin: top;
+    transition: transform 200ms var(--ef-snap);
+    pointer-events: none;
+  }
+  html.dark tbody tr > td:first-child::before {
+    background: var(--ef-accent);
+  }
+  tbody tr:hover > td:first-child::before {
+    transform: scaleY(1);
+  }
+  /* 开关滑块 / 分段墨块：280ms mech 移动 */
+  [role='switch'] > span {
+    transition: transform 280ms var(--ef-mech), background-color 280ms var(--ef-mech) !important;
+  }
+  [role='tab'] {
+    transition: background-color 280ms var(--ef-mech), color 280ms var(--ef-mech) !important;
+  }
+  /* 主按钮按下：擦入提速到 100ms（回应操作），抬起退回 280ms */
+  .dashboard-button--default:active::before {
+    transition-duration: 100ms;
+  }
+  /* 导航当前项切换：黄块 280ms mech 落位 */
+  [data-observation-key='true'] {
+    transition: background-color 280ms var(--ef-mech), color 280ms var(--ef-mech);
+  }
 }
 /* 系统减少动态效果：全部静止 */
 @media (prefers-reduced-motion: reduce) {

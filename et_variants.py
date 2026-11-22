@@ -171,6 +171,8 @@ def build_preamble(variant: dict) -> str:
         "--ef-snap:cubic-bezier(0.16,1,0.3,1);"
         "--ef-mech:cubic-bezier(0.7,0,0.2,1);"
         "--ef-ease:cubic-bezier(0.2,0.7,0.1,1);"
+        # 等高线底纹：墨色 18%（skill 基准 9%，按用户要求加强；只铺两角不闭合）
+        "--ef-contour:color-mix(in srgb, var(--ef-ink) 18%, transparent);"
     )
     light = color_block(variant["light"], INK_LIGHT, INK2_LIGHT, DANGER_LIGHT,
                         hex_to_hsl(INK_LIGHT))

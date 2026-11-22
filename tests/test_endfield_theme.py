@@ -157,11 +157,48 @@ def test_fonts_installed(env):
     assert (fdir / "Saira.ttf").stat().st_size == (PLUGIN_DIR / "fonts" / "Saira.ttf").stat().st_size
 
 
+def test_contours_installed_and_removed(env):
+    """等高线 SVG 随注入分发、随停用/卸载清理（CSS mask 引用 dist 内路径）。"""
+    plugin, dist = env
+    _apply(plugin)
+    fdir = dist / "fonts" / "endfield"
+    for name in ("contour-a.svg", "contour-b.svg"):
+        assert (fdir / name).is_file(), f"{name} 未随注入分发"
+        assert (fdir / name).stat().st_size == (PLUGIN_DIR / "theme" / "contours" / name).stat().st_size
+    asyncio.run(plugin.on_unload())
+    assert not (dist / "fonts" / "endfield").exists(), "卸载后等高线未清理"
+
+
+def test_css_contours_and_motion():
+    """等高线可见性 + 动效语法：删掉任一关键实现都会失败。"""
+    css = (PLUGIN_DIR / "theme" / "endfield-theme.css").read_text(encoding="utf-8")
+    # 等高线：两角 mask、引用 dist 内 SVG、铺在主区
+    assert "contour-a.svg" in css and "contour-b.svg" in css
+    assert "[data-observation-shell='true']::before" in css
+    assert "var(--ef-contour)" in css
+    # 动效：通电/擦入/快门关键帧 + 对话框/浮层/提示条/标签页接入
+    for kf in ("ef-power-on", "ef-power-off", "ef-wipe-in", "ef-wipe-out", "ef-shutter-in", "ef-come"):
+        assert f"@keyframes {kf}" in css, f"缺关键帧 {kf}"
+    assert "[role='dialog'][data-state='open']" in css
+    assert "[data-sonner-toast][data-state='open']" in css
+    assert "[role='tabpanel'][data-state='active']" in css
+    # 记录行：右移 6px + 左色条
+    assert "translateX(6px)" in css
+    # 减少动态效果保护仍在
+    assert "prefers-reduced-motion: reduce" in css
+    assert "prefers-reduced-motion: no-preference" in css
+    # preamble 提供 18% 等高线变量（高于 skill 基准 9%，用户要求加强）
+    from importlib import import_module
+    ev = import_module("endfield_theme.et_variants")
+    pre = ev.build_preamble(ev.resolve("lime", "neutral", "compact"))
+    assert "--ef-contour:color-mix(in srgb, var(--ef-ink) 18%, transparent)" in pre
+
+
 def test_config_update_switches_accent(env):
     plugin, dist = env
     _apply(plugin)
     _set_config(plugin, accent="amber")
-    asyncio.run(plugin.on_config_update("self", {}, "0.1.1"))
+    asyncio.run(plugin.on_config_update("self", {}, "0.2.0"))
     html = (dist / "index.html").read_text(encoding="utf-8")
     assert "--ef-accent:#FFB31F" in html
     assert "--ef-accent:#B8FF3D" not in html, "旧强调色残留"
@@ -174,7 +211,7 @@ def test_disable_restores_official(env):
     cfg = get_default_config(type(plugin).config_model)
     cfg["plugin"]["enabled"] = False
     bind_context(plugin, plugin.ctx, cfg)
-    asyncio.run(plugin.on_config_update("self", cfg, "0.1.1"))
+    asyncio.run(plugin.on_config_update("self", cfg, "0.2.0"))
     assert (dist / "index.html").read_text(encoding="utf-8") == OFFICIAL_HTML
     assert not (dist / "fonts" / "endfield").exists()
 

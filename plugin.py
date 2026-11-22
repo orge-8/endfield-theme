@@ -40,6 +40,10 @@ ASSET_DIR = Path(__file__).parent / "theme"
 CSS_FILE = ASSET_DIR / "endfield-theme.css"
 FONTS_CSS_FILE = ASSET_DIR / "fonts.css"
 FONTS_SRC = Path(__file__).parent / "fonts"
+CONTOURS_SRC = ASSET_DIR / "contours"
+# 随主题分发进 dist 的静态资产（字体 + 等高线 SVG），卸载时一并清理
+CONTOUR_NAMES = ("contour-a.svg", "contour-b.svg")
+_DIST_ASSET_NAMES = {"Saira.ttf", "Saira-OFL.txt", "fonts.css", *CONTOUR_NAMES}
 
 
 class EndfieldThemePlugin(MaiBotPlugin):
@@ -94,6 +98,15 @@ class EndfieldThemePlugin(MaiBotPlugin):
             if target.exists() and target.stat().st_size == item.stat().st_size:
                 continue
             target.write_bytes(item.read_bytes())
+        # 等高线背景 SVG（CSS mask 引用 /fonts/endfield/contour-*.svg）
+        for name in CONTOUR_NAMES:
+            item = CONTOURS_SRC / name
+            if not item.is_file():
+                continue
+            target = dst_dir / name
+            if target.exists() and target.stat().st_size == item.stat().st_size:
+                continue
+            target.write_bytes(item.read_bytes())
         return True
 
     def _uninstall_fonts(self, dist: Path) -> None:
@@ -101,7 +114,7 @@ class EndfieldThemePlugin(MaiBotPlugin):
         if not target.is_dir():
             return
         for item in target.iterdir():
-            if item.is_file() and item.name in {"Saira.ttf", "Saira-OFL.txt", "fonts.css"}:
+            if item.is_file() and item.name in _DIST_ASSET_NAMES:
                 item.unlink(missing_ok=True)
         try:
             target.rmdir()
