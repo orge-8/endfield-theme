@@ -93,6 +93,16 @@ def build_preamble(variant: dict) -> str:
 
     def color_block(p: dict, ink: str, ink2: str, danger: str, trace_hsl: str,
                     primary_hsl: str) -> str:
+        # 看板层（board.css）与外壳层（surfaces.css）另有一套变量，
+        # 原生 --board-chart-1/2 = hsl(var(--primary)/0.7|0.3)，浅色 primary=墨
+        # 会让首页柱图变成灰柱。图表是填充语义，改强调色 + 墨阶（不用红绿）。
+        board = (
+            f"--board-chart-1:{a_hex} !important;"
+            f"--board-chart-2:color-mix(in srgb, {ink} 45%, transparent) !important;"
+            f"--board-chart-grid:{p['rule']} !important;"
+            f"--board-chart-axis:{p['rule']} !important;"
+            f"--board-chart-ink:{ink2} !important;"
+        )
         # primary 语义 = 可读的「品牌色」：dashboard 大量用 text-primary 渲染文字/图标
         # （运行中计数、当前 Bot 名、GATEWAY 路径等）。浅色纸面上强调色对比度约 1.1:1，
         # 故浅色 primary=墨色；深色纸面强调色可读，primary=强调色。
@@ -123,6 +133,7 @@ def build_preamble(variant: dict) -> str:
             f"--color-chart-3:{hex_to_hsl(ink2)} !important;"
             f"--color-chart-4:{hex_to_hsl(p['rule'])} !important;"
             f"--color-chart-5:{hex_to_hsl(TRI_C)} !important;"
+            + board
         )
 
     shared = (
@@ -162,6 +173,53 @@ def build_preamble(variant: dict) -> str:
         "--animation-anim-easing-in:cubic-bezier(0.7,0,0.2,1) !important;"
         "--animation-anim-easing-out:cubic-bezier(0.16,1,0.3,1) !important;"
         "--animation-anim-easing-in-out:cubic-bezier(0.7,0,0.2,1) !important;"
+        # 看板层：麦麦观察首页 / 机器人管理 / 桌宠页共用（board.css）。
+        # 原生 module-radius 0.75rem + 双层投影、number/code-font inherit，
+        # 这里直角细线 + Saira 宽体数字与代号。
+        "--board-module-radius:0px !important;"
+        "--board-module-shadow:none !important;"
+        "--board-module-border:1px solid var(--ef-rule) !important;"
+        "--board-module-bg:var(--ef-panel) !important;"
+        "--board-screen-radius:0px !important;"
+        "--board-screen-shadow:none !important;"
+        "--board-screen-border:0 !important;"
+        "--board-shadow:none !important;"
+        "--board-border:0 !important;"
+        "--board-bg:transparent !important;"
+        "--board-rule:1px solid var(--ef-rule) !important;"
+        "--board-ink:var(--ef-ink) !important;"
+        "--board-dim:var(--ef-ink2) !important;"
+        # 链接/引号等文字语义：浅色=墨（强调色白底不可读），深色块改成强调色
+        "--board-accent:var(--ef-ink) !important;"
+        '--board-number-font:"Saira","Noto Sans SC","Microsoft YaHei UI",system-ui,sans-serif !important;'
+        '--board-code-font:"Saira","Noto Sans SC","Microsoft YaHei UI",system-ui,sans-serif !important;'
+        # 公共外壳层（surfaces.css）：页面框 / 数据屏 / 列表选中
+        "--surface-radius:0px !important;"
+        "--surface-frame-shadow:none !important;"
+        "--surface-data-shadow:none !important;"
+        "--surface-texture:none !important;"
+        "--surface-data-texture:none !important;"
+        "--surface-data-stroke:1px !important;"
+        "--surface-separator-stroke:1px !important;"
+        "--surface-frame-bg:var(--ef-panel) !important;"
+        "--surface-data-bg:var(--ef-paper) !important;"
+        "--surface-line:var(--ef-rule) !important;"
+        "--surface-ink:var(--ef-ink) !important;"
+        "--surface-focus:var(--ef-ink) !important;"
+        "--list-selected-bg:var(--ef-accent) !important;"
+        "--list-selected-ink:#161616 !important;"
+        "--list-hover-bg:var(--ef-chip) !important;"
+        # 首页专属（observation.css）：标题字体、编辑态描线
+        '--obs-heading-font:"Saira","Noto Sans SC","Microsoft YaHei UI",system-ui,sans-serif !important;'
+        '--obs-plate-font:"Saira","Noto Sans SC","Microsoft YaHei UI",system-ui,sans-serif !important;'
+        "--obs-edit:var(--ef-ink) !important;"
+        # 聊天气泡：直角、无投影；发出方=强调色填充 + 墨字
+        "--chat-bubble-radius:0px !important;"
+        "--chat-bubble-shadow:none !important;"
+        "--chat-bubble-bg:var(--ef-chip) !important;"
+        "--chat-bubble-ink:var(--ef-ink) !important;"
+        "--chat-outgoing-bg:var(--ef-accent) !important;"
+        "--chat-outgoing-ink:#161616 !important;"
         # 本主题自有变量
         f"--ef-accent:{a_hex};"
         f"--ef-accent-hsl:{a_hsl};"
@@ -188,6 +246,10 @@ def build_preamble(variant: dict) -> str:
         f"--ef-paper:{variant['dark']['paper']};--ef-panel:{variant['dark']['panel']};"
         f"--ef-rule:{variant['dark']['rule']};--ef-chip:{variant['dark']['chip']};"
         f"--ef-danger:{DANGER_DARK};"
+        # 深色纸面上强调色可读，链接/引号等文字语义直接用强调色
+        "--board-accent:var(--ef-accent) !important;"
+        "--surface-focus:var(--ef-accent) !important;"
+        "--obs-edit:var(--ef-accent) !important;"
     )
     return (
         f"html{{{light}{shared}}}\n"

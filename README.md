@@ -26,7 +26,7 @@
 | 配置节 | 字段 | 默认值 | 说明 |
 |---|---|---|---|
 | `[plugin]` | `enabled` | `true` | 是否启用主题（关闭即移除注入，恢复官方外观） |
-| `[plugin]` | `config_version` | `0.2.1` | 配置版本，升级时触发归一化重建 |
+| `[plugin]` | `config_version` | `0.3.0` | 配置版本，升级时触发归一化重建 |
 | `[appearance]` | `accent` | `lime` | 强调色：yellow(标准黄) / lime(青柠) / ice(冰蓝) / amber(琥珀) |
 | `[appearance]` | `paper` | `neutral` | 纸色：neutral(中性灰白) / warm(暖米色) / cool(冷青灰) |
 | `[appearance]` | `density` | `compact` | 密度：compact(紧凑) / standard(标准) / roomy(宽松) |

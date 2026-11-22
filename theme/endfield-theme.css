@@ -263,17 +263,438 @@ html.dark [data-observation-key='true']:focus-visible {
 
 /* ============ 4. 卡片/面板：直角细线，无阴影 ============ */
 .bg-card,
-[data-slot='card'] {
+[data-dashboard-card='true'] {
   border-radius: 0 !important;
   box-shadow: none !important;
   border: 1px solid var(--ef-rule) !important;
   background: var(--ef-panel) !important;
 }
+/* 页面外壳与只读数据屏：直角细线，无颗粒纹理 */
+[data-dashboard-page-frame='true'],
+[data-dashboard-data-panel='true'] {
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  background-image: none !important;
+}
+[data-dashboard-list-item='true'] {
+  border-radius: 0 !important;
+}
+
+/* ============ 4b. 看板层：麦麦观察首页 / 机器人管理 / 桌宠页 ============ */
+/* 看板模块 = 展示栏目，直角（不切角，切角只给可点的）。
+   顶边一段粗墨页签占 14%，悬停/聚焦时沿整条边伸开（400ms mech）。 */
+[data-board-module='true'] {
+  position: relative;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  border: 1px solid var(--ef-rule) !important;
+  background: var(--ef-panel) !important;
+  background-image: none !important;
+}
+[data-board-module='true']::before {
+  content: '';
+  position: absolute;
+  top: -1px;
+  left: -1px;
+  right: -1px;
+  height: 4px;
+  background: var(--ef-ink);
+  transform: scaleX(0.14);
+  transform-origin: left;
+  transition: transform 400ms var(--ef-mech);
+  pointer-events: none;
+}
+[data-board-module='true']:is(:hover, :focus-within)::before {
+  transform: none;
+}
+/* 编辑态描虚线时页签让位，避免和虚线叠在一起 */
+[data-board-module='true'][data-editing='true']::before {
+  display: none;
+}
+[data-board-screen='true'] {
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  background-image: none !important;
+}
+/* 英文代号眉标：原生 modern 风格 display:none，这里显示为宽体大写小字 */
+[data-board-module-label='true'] {
+  align-items: baseline;
+  gap: 0.5rem;
+}
+[data-board-module-code='true'] {
+  display: inline !important;
+  color: var(--ef-ink2) !important;
+  font-family: var(--board-code-font) !important;
+  font-stretch: 125%;
+  font-size: 0.6875rem !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.14em !important;
+  text-transform: uppercase;
+}
+[data-board-module-code='true']::before {
+  content: '// ';
+}
+/* 中文标题：粗体，不拉宽不加字距 */
+[data-board-module-title='true'] {
+  color: var(--ef-ink) !important;
+  font-stretch: 100%;
+  font-size: 0.8125rem !important;
+  font-weight: 700 !important;
+  letter-spacing: 0 !important;
+}
+/* 刻线代号同样是宽体大写眉标 */
+[data-board-rule-code='true'] {
+  color: var(--ef-ink2) !important;
+  font-stretch: 125%;
+  font-weight: 600 !important;
+  letter-spacing: 0.14em !important;
+  text-transform: uppercase;
+}
+[data-board-rule-code='true']::before {
+  content: '// ';
+}
+[data-board-rule-line='true'] {
+  border-top: 1px solid var(--ef-rule) !important;
+  border-bottom: 0 !important;
+}
+/* 大数字：宽体粗体等宽数字 */
+[data-board-number='true'] {
+  font-family: var(--board-number-font) !important;
+  font-stretch: 112%;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700 !important;
+  letter-spacing: -0.01em;
+}
+[data-board-label='true'] {
+  color: var(--ef-ink2) !important;
+}
+/* 未读徽章 = 编号标签：强调色填充 + 墨字 + 右下切角（原生 999px 胶囊） */
+[data-board-badge='true'] {
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  background: var(--ef-accent) !important;
+  color: #161616 !important;
+  font-weight: 700 !important;
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 5px), calc(100% - 5px) 100%, 0 100%);
+}
+
+/* ============ 4c. 麦麦观察首页部件 ============ */
+/* 运行状态大字：宽体粗体。 stopped 原生用 destructive 红，改墨（红只给删除） */
+[data-observation-hero] {
+  font-family: var(--obs-heading-font) !important;
+  font-stretch: 112%;
+  font-weight: 900 !important;
+}
+[data-observation-hero='running'] {
+  color: var(--ef-ink) !important;
+}
+html.dark [data-observation-hero='running'] {
+  color: var(--ef-accent) !important;
+}
+[data-observation-hero='stopped'] {
+  color: var(--ef-ink) !important;
+}
+[data-observation-hero='unknown'] {
+  color: var(--ef-ink2) !important;
+}
+/* 快捷动作上的计数徽章：方形强调色块 + 墨字（原生 999px） */
+[data-observation-key-badge='true'] {
+  border-radius: 0 !important;
+  background: var(--ef-accent) !important;
+  color: #161616 !important;
+  font-family: var(--board-number-font);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+/* 资讯行：细线分隔，未读点方形（原生 999px） */
+[data-observation-news-row='true'] {
+  border-bottom: 1px solid var(--ef-rule) !important;
+}
+[data-observation-news-row='true'] > span[data-unread] {
+  border-radius: 0 !important;
+  background: var(--ef-rule) !important;
+}
+[data-observation-news-row='true'] > span[data-unread='true'] {
+  background: var(--ef-accent) !important;
+}
+/* 顶部资讯条：// 眉标 + 细线，不用闪烁灯 */
+[data-home-news-label='true'] {
+  color: var(--ef-ink2) !important;
+  font-stretch: 125%;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+[data-home-news-label='true']::before {
+  content: '// ';
+}
+[data-home-news-next='true'] {
+  font-family: var(--board-number-font);
+  font-variant-numeric: tabular-nums;
+}
+/* 版本号：宽体大写小字 + 等宽数字 */
+[data-observation-versions='true'] {
+  border-right: 1px solid var(--ef-rule) !important;
+  font-stretch: 125%;
+}
+[data-observation-version-value='true'] {
+  font-family: var(--board-number-font);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+/* 用量分区：细线分隔 */
+[data-observation-usage-big='true'] {
+  border-right: 1px solid var(--ef-rule) !important;
+}
+[data-observation-usage-small='true']:nth-of-type(3),
+[data-observation-usage-small='true']:nth-of-type(4),
+[data-observation-cache-row='true'] {
+  border-bottom: 1px solid var(--ef-rule) !important;
+}
+[data-observation-cache-row='true']:last-child {
+  border-bottom: 0 !important;
+}
+/* 模型占比条与色点：方形（原生 999px），配色走 --board-chart-*（强调色 + 墨阶） */
+[data-observation-model-bar='true'] {
+  border-radius: 0 !important;
+}
+[data-observation-model-dot] {
+  border-radius: 0 !important;
+}
+/* 统计周期拨杆：方形凹槽 + 墨底反白当前档（分段选择例外，不用强调色）。
+   原生 999px 胶囊 + 投影 + 300ms 软曲线，这里方形 + 280ms mech。 */
+[data-observation-period='true'] {
+  border-radius: 0 !important;
+  background: var(--ef-chip) !important;
+  border: 1px solid var(--ef-rule) !important;
+  box-shadow: none !important;
+}
+[data-observation-period-thumb='true'] {
+  border-radius: 0 !important;
+  background: var(--ef-ink) !important;
+  box-shadow: none !important;
+  transition: transform 280ms var(--ef-mech) !important;
+}
+[data-observation-period='true'] > button {
+  color: var(--ef-ink2) !important;
+  font-stretch: 125%;
+  font-weight: 700 !important;
+  letter-spacing: 0.08em;
+  transition: color 280ms var(--ef-mech) !important;
+}
+[data-observation-period='true'] > button[aria-checked='true'] {
+  color: var(--ef-paper) !important;
+}
+[data-observation-period='true'] > button:focus-visible {
+  border-radius: 0 !important;
+  outline: 2px solid var(--ef-ink) !important;
+  outline-offset: -2px;
+}
+html.dark [data-observation-period='true'] > button:focus-visible {
+  outline-color: var(--ef-accent) !important;
+}
+/* 卡片标题条上的小图标键：方形，可点所以切角 */
+[data-observation-card-action='true'] {
+  border-radius: 0 !important;
+  color: var(--ef-ink2) !important;
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 4px), calc(100% - 4px) 100%, 0 100%);
+}
+[data-observation-card-action='true']:hover {
+  background: var(--ef-accent) !important;
+  color: #161616 !important;
+}
+/* 一言引号：文字语义，浅色墨 / 深色强调色（走 --board-accent） */
+[data-observation-quote-text='true'] {
+  font-family: var(--obs-heading-font) !important;
+  font-stretch: 100%;
+}
+/* 编辑态：虚线描边用墨（原生 primary），拖动中铺 45° 斜线纹 */
+[data-board-module='true'][data-editing='true'] {
+  outline: 2px dashed var(--obs-edit) !important;
+  outline-offset: 4px;
+}
+[data-board-module='true'][data-dragging='true'] {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    transparent 0 5px,
+    color-mix(in srgb, var(--ef-ink) 22%, transparent) 5px 6.5px
+  ) !important;
+}
+/* 宽度档 / 移除键：方形；选中档墨底反白；移除是删除语义，保留红 */
+[data-observation-card-sizes='true'] > button,
+[data-observation-card-remove='true'] {
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  background: var(--ef-chip) !important;
+  color: var(--ef-ink) !important;
+  border: 1px solid var(--ef-rule) !important;
+}
+[data-observation-card-sizes='true'] > button[aria-pressed='true'] {
+  background: var(--ef-ink) !important;
+  color: var(--ef-paper) !important;
+  border-color: var(--ef-ink) !important;
+}
+[data-observation-card-remove='true'] {
+  color: var(--ef-danger) !important;
+}
+/* 卡片库：直角细线面板，列表项细线分隔（原生 0.875rem + 虚线） */
+[data-observation-library='true'] {
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  background: var(--ef-panel) !important;
+  background-image: none !important;
+  border: 1px solid var(--ef-rule) !important;
+}
+[data-observation-library-list='true'] > li {
+  border-bottom: 1px solid var(--ef-rule) !important;
+}
+[data-observation-library-name='true'] span {
+  font-stretch: 125%;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+/* ============ 4d. 首页底部输入条 ============ */
+/* 原生 0.875rem 圆角 + 双层投影，这里直角细线 */
+[data-observation-composer='true'] {
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  background: var(--ef-panel) !important;
+  background-image: none !important;
+  border: 1px solid var(--ef-rule) !important;
+  transition: border-color 200ms var(--ef-mech) !important;
+}
+[data-observation-composer-input='true'] {
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  background: var(--ef-paper) !important;
+  border: 1px solid var(--ef-rule) !important;
+}
+[data-observation-composer-input='true']:focus-within {
+  outline: 2px solid var(--ef-ink) !important;
+  outline-offset: -1px;
+}
+html.dark [data-observation-composer-input='true']:focus-within {
+  outline-color: var(--ef-accent) !important;
+}
+/* 模式灯：方形。答疑档原生用绿色 hsl(152 55% 40%)，违反单一强调色，
+   改成「聊天=墨、答疑=强调色」，靠颜色 + 旁边的文字区分。 */
+[data-observation-mode-lamp='true'] {
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  background: var(--ef-ink) !important;
+  transition: background-color 200ms var(--ef-mech) !important;
+}
+[data-observation-composer='true'][data-mode='ask'] [data-observation-mode-lamp='true'] {
+  background: var(--ef-accent) !important;
+}
+/* 发送组：去掉 inset 白色高光，尾段用细线分隔 */
+[data-observation-mode-tail='true'] {
+  box-shadow: none !important;
+  border-left: 1px solid var(--ef-rule) !important;
+}
+[data-observation-mode-tail='true'] svg {
+  transition: transform 280ms var(--ef-mech) !important;
+}
+/* 答疑档发送键：原生深绿 hsl(152 55% 36%) + 白字，改强调色填充 + 墨字 */
+[data-observation-composer='true'][data-mode='ask'] [data-observation-send-group='true'] > .dashboard-button {
+  background: var(--ef-accent) !important;
+  color: #161616 !important;
+}
+[data-observation-send-group='true'] > .dashboard-button {
+  transition: background-color 200ms var(--ef-mech), color 200ms var(--ef-mech) !important;
+}
+/* 模式叠层切换：240ms mech，不做软弹 */
+[data-observation-mode-stack='true'] > [data-layer] {
+  transition: opacity 200ms var(--ef-mech), transform 280ms var(--ef-mech) !important;
+}
+
+/* ============ 4e. 桌宠卡片 ============ */
+[data-desktop-pet-bubble='true'] {
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  background: var(--ef-chip) !important;
+  border: 1px solid var(--ef-rule) !important;
+}
+/* 思考中：原生等宽字 + 字距，改 45° 斜线纹表处理中 */
+[data-desktop-pet-bubble='true'][data-thinking='true'] {
+  color: var(--ef-ink2) !important;
+  background: repeating-linear-gradient(
+    -45deg,
+    transparent 0 5px,
+    color-mix(in srgb, var(--ef-ink) 22%, transparent) 5px 6.5px
+  ) !important;
+}
+[data-desktop-pet-footer='true'] {
+  border-top: 1px solid var(--ef-rule) !important;
+}
+/* 待办角标：方形强调色块 + 墨字（原生 999px） */
+[data-desktop-pet-todo-badge='true'] {
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  background: var(--ef-accent) !important;
+  color: #161616 !important;
+  font-family: var(--board-number-font);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+/* ============ 4f. 侧栏会话列表 ============ */
+[data-conversation-item='true'] {
+  border-radius: 0 !important;
+  border-bottom: 1px solid var(--ef-rule) !important;
+}
+[data-conversation-item='true'][data-selected='true'] {
+  background: var(--ef-accent) !important;
+  color: #161616 !important;
+}
+[data-conversation-avatar='true'],
+[data-conversation-avatar='true'] > span {
+  border-radius: 0 !important;
+}
+/* 头像底色：原生六种彩色 tone，统一浅灰 + 墨字（单一强调色） */
+[data-conversation-avatar='true'][data-bot='false'] > span {
+  background: var(--ef-chip) !important;
+  color: var(--ef-ink) !important;
+}
+[data-conversation-avatar='true'][data-bot='true'] > span {
+  background: var(--ef-accent) !important;
+  color: #161616 !important;
+}
+/* 图标轨里选中/悬停头像的绿色描边（#22c55e）改强调色 */
+[data-observation-sidebar='true'][data-collapsed='true'] [data-conversation-item='true'][data-selected='true'] [data-conversation-avatar='true'],
+[data-observation-sidebar='true'][data-collapsed='true'] [data-conversation-item='true']:hover [data-conversation-avatar='true'],
+[data-observation-chat-stack='true'][data-active='true'] [data-observation-stack-avatar='true'] > [data-conversation-avatar='true'],
+[data-observation-chat-stack='true']:hover [data-observation-stack-avatar='true'] > [data-conversation-avatar='true'] {
+  border-color: var(--ef-accent) !important;
+  box-shadow: inset 0 0 0 1px var(--ef-accent) !important;
+}
+[data-observation-chat-count='true'] {
+  border-radius: 0 !important;
+  background: var(--ef-accent) !important;
+  color: #161616 !important;
+}
+[data-observation-count='true'] {
+  border-radius: 0 !important;
+  background: var(--ef-chip) !important;
+  color: var(--ef-ink) !important;
+}
+/* 侧栏设置键容器：原生白卡 0.75rem 圆角，命令栏里改深色细线 */
+[data-observation-sidebar='true']:not([data-collapsed='true']) [data-observation-settings='true'] {
+  border-radius: 0 !important;
+  background: #1C1C1C !important;
+  border: 1px solid #353535 !important;
+}
+[data-observation-conversations-head='true'] input {
+  background: #222222 !important;
+  border-color: #353535 !important;
+  color: #EDEDED !important;
+}
 
 /* ============ 5. 输入控件 ============ */
 input, textarea, select,
-[data-slot='input'],
-[data-radix-select-trigger] {
+[data-dashboard-input='true'],
+[data-dashboard-select-trigger='true'] {
   border-radius: 0 !important;
   box-shadow: none !important;
 }
@@ -312,7 +733,10 @@ html.dark input:focus-visible, html.dark textarea:focus-visible {
   color: #161616 !important;
   border-color: var(--ef-accent) !important;
 }
-/* 单选圆点：原生 background:currentColor，选中时强制墨色 */
+/* 单选圆点：原生 background:currentColor + 50% 圆形，改方形、选中时强制墨色 */
+[data-dashboard-radio-mark='true'] {
+  border-radius: 0 !important;
+}
 [role='radio'][data-state='checked'] [data-dashboard-radio-mark='true'] {
   background: #161616 !important;
 }
@@ -338,6 +762,15 @@ html.dark input:focus-visible, html.dark textarea:focus-visible {
 [data-dashboard-feature-status='true'][data-enabled='true'] [data-dashboard-feature-status-light='true'] {
   background: var(--ef-accent) !important;
 }
+/* modern 风格在移动端把状态灯改回绿圆点（--m-ok #34c759），
+   用同权重 + !important 压掉：方形 + 强调色，红绿全零 */
+[data-dashboard-shell='true'] [data-dashboard-feature-status-light='true'] {
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+[data-dashboard-shell='true'] [data-dashboard-feature-status='true'][data-enabled='true'] [data-dashboard-feature-status-light='true'] {
+  background: var(--ef-accent) !important;
+}
 
 /* ============ 6. 标签页：当前段墨底反白（分段选择例外，不用黄） ============ */
 [role='tablist'] {
@@ -352,6 +785,22 @@ html.dark input:focus-visible, html.dark textarea:focus-visible {
   transition: background-color 200ms var(--ef-mech), color 200ms var(--ef-mech);
 }
 [role='tab'][data-state='active'] {
+  background: var(--ef-ink) !important;
+  color: var(--ef-paper) !important;
+  box-shadow: none !important;
+}
+/* modern 设置页签：原生 active 用 primary 2px 下划线 + 透明底，
+   压回「当前段墨底反白」统一语法（含更高优先级的 modern 选择器） */
+[data-dashboard-tabs-list='true']:has(> [data-dashboard-settings-tabs='true']) {
+  background: var(--ef-chip) !important;
+  border: 1px solid var(--ef-rule) !important;
+  box-shadow: none !important;
+}
+[data-dashboard-settings-tabs='true'] {
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+[data-dashboard-settings-tabs='true'][data-state='active'] {
   background: var(--ef-ink) !important;
   color: var(--ef-paper) !important;
   box-shadow: none !important;
@@ -379,9 +828,68 @@ html.dark input:focus-visible, html.dark textarea:focus-visible {
   box-shadow: none !important;
   border: 1px solid var(--ef-rule) !important;
 }
+/* modern 风格的磨砂玻璃浮层/弹窗/卡片：全部压成实底细线，
+   去 backdrop-filter、去玻璃投影（语法：无模糊、无阴影） */
+[data-dashboard-floating-content='true'],
+[data-dashboard-select-content='true'],
+[data-dashboard-chart-tooltip='true'],
+.recharts-default-tooltip,
+[data-dashboard-dialog-content='true'],
+[data-dashboard-card='true'] {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+  box-shadow: none !important;
+}
+[data-dashboard-floating-content='true'],
+[data-dashboard-select-content='true'],
+[data-dashboard-chart-tooltip='true'],
+.recharts-default-tooltip {
+  background: var(--ef-panel) !important;
+  border: 1px solid var(--ef-rule) !important;
+  color: var(--ef-ink) !important;
+}
+[data-dashboard-dialog-content='true'] {
+  background: var(--ef-panel) !important;
+}
+[data-dashboard-dialog-overlay='true'] {
+  background: color-mix(in srgb, #161616 62%, transparent) !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
 /* 下拉项 hover/focus：浅灰，不用圆角 */
 [role='menuitem'], [role='option'] {
   border-radius: 0 !important;
+}
+/* modern 分段选择：原生凹槽圆角 + inset 投影，改方形凹槽细线；
+   选中项沿用第 6 节墨底反白（按钮本体在第 3 节已直角化） */
+[data-dashboard-segmented-control='true'] {
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  border: 1px solid var(--ef-rule) !important;
+  background: var(--ef-chip) !important;
+}
+/* 管理页选项卡片右上角指示器：原生 50% 空心圆，改方形 */
+[data-option-part='indicator'] {
+  border-radius: 0 !important;
+}
+[data-option-part='indicator'][data-selected='true'] {
+  background: var(--ef-accent) !important;
+  border-color: var(--ef-accent) !important;
+  color: #161616 !important;
+}
+/* 管理页当前导航项：modern 原生透明底 + 2px primary 左线，
+   统一改「强调色整块 + 右下切角」（与侧栏当前项同语法） */
+[data-dashboard-nav-item='true'][data-active='true'] {
+  background: var(--ef-accent) !important;
+  color: #161616 !important;
+  font-weight: 700 !important;
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - var(--ef-cut-sm)), calc(100% - var(--ef-cut-sm)) 100%, 0 100%);
+}
+[data-dashboard-nav-item='true'][data-active='true']::before {
+  display: none !important;
+}
+[data-dashboard-nav-item='true'][data-active='true']:hover {
+  background: var(--ef-accent) !important;
 }
 /* 移动端底部面板的圆角顶也压平 */
 [role='dialog'].rounded-t-\[28px\], [role='dialog'][class*='rounded-t'] {
@@ -389,7 +897,7 @@ html.dark input:focus-visible, html.dark textarea:focus-visible {
 }
 
 /* ============ 9. 提示条：白底细框 + 黄色小旗（不用红色告警） ============ */
-[role='status'], .toast, [data-sonner-toast] {
+[role='status'], .toast, [data-dashboard-toast='true'] {
   border-radius: 0 !important;
   box-shadow: none !important;
   border: 1px solid var(--ef-rule) !important;
@@ -420,11 +928,11 @@ tbody tr:hover {
   border-radius: 0 !important;
   background: var(--ef-accent) !important;
 }
-[data-radix-slider-track], [data-radix-slider-range], [data-radix-slider-thumb] {
+[data-dashboard-slider-track='true'], [data-dashboard-slider-range='true'], [data-dashboard-slider-thumb='true'] {
   border-radius: 0 !important;
 }
-[data-radix-slider-range] { background: var(--ef-accent) !important; }
-[data-radix-slider-thumb] {
+[data-dashboard-slider-range='true'] { background: var(--ef-accent) !important; }
+[data-dashboard-slider-thumb='true'] {
   background: var(--ef-ink) !important;
   border: 2px solid var(--ef-paper) !important;
   box-shadow: none !important;
@@ -467,6 +975,17 @@ html.dark .animate-spin.border-primary {
     transparent 0 5px,
     color-mix(in srgb, var(--ef-ink) 22%, transparent) 5px 6.5px
   ) !important;
+}
+/* 重启遮罩的装饰循环动画（ping 扩散圈 + bounce 粒子）：
+   语法不做持续循环装饰动画，全部静止；进度条与转圈加载保留（功能性）。 */
+.animate-ping,
+[class*='animate-[ping'],
+.animate-bounce {
+  animation: none !important;
+}
+/* 重启遮罩成功图标原生 text-green-500 绿：状态不用红绿，改强调色 */
+.text-green-500 {
+  color: var(--ef-accent) !important;
 }
 
 /* ============ 15. 动效：短、硬、机械 ============ */
@@ -536,11 +1055,11 @@ html.dark .animate-spin.border-primary {
     animation: ef-power-off 120ms var(--ef-mech) both !important;
   }
   /* 提示条：从左擦入 280，向右擦掉 160（黄旗已在第 9 节） */
-  [data-sonner-toast][data-state='open'],
+  [data-dashboard-toast='true'][data-state='open'],
   [role='status'][data-state='open'] {
     animation: ef-wipe-in 280ms var(--ef-mech) both !important;
   }
-  [data-sonner-toast][data-state='closed'],
+  [data-dashboard-toast='true'][data-state='closed'],
   [role='status'][data-state='closed'] {
     animation: ef-wipe-out 160ms var(--ef-mech) both !important;
   }
@@ -606,7 +1125,8 @@ html.dark .animate-spin.border-primary {
 /* ============ 16. 移动端 ============ */
 @media (max-width: 1023px) {
   /* 底部标签栏当前项：整格强调色 + 切角 */
-  [data-mobile-tab-bar] [aria-current='page'],
+  [data-mobile-tabbar='true'] [aria-current='page'],
+  [data-mobile-tab='true'][data-active='true'],
   nav[aria-label] a[aria-current='page'] {
     background: var(--ef-accent) !important;
     color: #161616 !important;
@@ -614,4 +1134,25 @@ html.dark .animate-spin.border-primary {
   }
   /* 触控区域不小于 44px */
   .dashboard-button { min-height: 44px; }
+  /* 移动端玻璃件（m-glass / m-glass-mobile）：去模糊、去多层 inset 高光、
+     去按压缩放弹跳，改实底细线（语法：无玻璃、无发光） */
+  .m-glass, .m-glass-mobile {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+    background: var(--ef-panel) !important;
+    background-image: none !important;
+    box-shadow: none !important;
+    border: 1px solid var(--ef-rule) !important;
+    border-radius: 0 !important;
+  }
+  :is(button, a).m-glass:active {
+    transform: none !important;
+  }
+  /* 底部标签栏本体与指示条：直角化 */
+  [data-mobile-tabbar='true'],
+  [data-mobile-tabbar-tabs='true'],
+  [data-mobile-tab-indicator='true'],
+  [data-mobile-tab='true'] {
+    border-radius: 0 !important;
+  }
 }

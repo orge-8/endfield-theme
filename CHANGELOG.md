@@ -1,5 +1,54 @@
 # Changelog
 
+## 0.3.0 (2026-11-22)
+
+补齐「麦麦观察」首页覆盖（用户反馈「左侧的麦麦观察页没动」）。
+根因：首页（ObservationHome）走独立的 `--board-*` 看板层 + `--surface-*`/`--list-*`
+表面层 + 大量 `data-observation-*`/`data-board-*` 专属部件，此前主题只覆盖了
+`--color-*` 与侧栏 `--obs-side/key-*`，首页整片保持官方外观。
+
+- 变量层补齐（et_variants.py，全部 !important 压行内 token）：
+  - `--board-*` 14 项：module/screen 直角零阴影、细线边框、墨色文字、
+    Saira 数字/代号字体；`--board-chart-1`=强调色、chart-2=墨 45%、
+    网格/轴线=细线色（图表不用红绿，随深浅两套）。
+  - `--surface-*`/`--list-*` 12 项：页面框/数据屏直角零阴影零纹理、
+    列表选中=强调色底+墨字、hover=浅灰。
+  - `--chat-*` 6 项：气泡直角零阴影、发出=强调色底+墨字。
+  - `--obs-heading-font`/`--obs-plate-font`=Saira、`--obs-edit` 浅色墨/深色强调色。
+- CSS 新增五节（4b–4f，约 17KB）：
+  - 4b 看板层：模块直角细线 + 顶边粗墨页签（14% → hover/focus 整条伸开，
+    400ms mech）；英文代号 `display:inline` + `// ` 前缀 + 125% 宽体
+    （原生 millennium/future-retro 才显示，现三风格统一显示）；
+    数字 Saira 等宽；徽章方形强调色切角。
+  - 4c 首页部件：hero 运行=强调色/停止=墨（去红）；key-badge/news 未读点/
+    model-dot 方形；周期拨杆方形凹槽 + 墨底反白滑块 280ms mech；
+    卡片操作切角 hover 强调色；编辑虚线/拖拽 45° 斜线纹；卡片库直角细线。
+  - 4d 底部输入条：直角细线去双层投影；ask 模式灯与发送键由原生
+    `hsl(152 55% …)` 绿改强调色+墨字；mode-tail 去 inset 白高光改细线。
+  - 4e 桌宠卡片：气泡直角浅灰底、thinking 改斜线纹、footer 实线、
+    todo-badge 方形强调色。
+  - 4f 侧栏会话：选中=强调色底+墨字；头像直角、非 bot 统一浅灰+墨
+    （消除六种彩色 tone）、bot=强调色；图标轨 `#22c55e` 绿描边改强调色；
+    会话计数方形；modern 侧栏白卡改深色命令栏配套。
+- 失效选择器修正（对照 dashboard 1.10.8 源码逐一核实）：
+  - `data-sonner-toast` → `data-dashboard-toast`（真机无 sonner 属性）
+  - `data-radix-slider-*` → `data-dashboard-slider-*`
+  - `data-mobile-tab-bar` → `data-mobile-tabbar`（无连字符 tab-bar）
+  - `[data-slot='card']`/`'input'`（不存在）→ `data-dashboard-card`/`-input`
+  - `data-radix-select-trigger` → `data-dashboard-select-trigger`
+- 其余违规点一并压掉：
+  - modern 磨砂玻璃浮层/弹窗/图表提示框/卡片：去 backdrop-filter 与玻璃投影，
+    实底细线；对话框遮罩改墨色 62%。
+  - modern 设置页签 primary 下划线 → 墨底反白；分段选择凹槽圆角+inset 投影 →
+    方形细线；管理页当前导航项透明底+2px 左线 → 强调色整块+切角。
+  - 单选圆点 50% 圆形 → 方形；选项卡指示器空心圆 → 方形。
+  - 移动端 `.m-glass` 玻璃 + 按压缩放弹跳 → 实底细线静止；
+    功能状态灯被 modern 改回的绿圆点（--m-ok）→ 方形强调色。
+  - 重启遮罩 ping 扩散圈/bounce 粒子循环装饰动画 → 静止（进度条/转圈保留）；
+    成功图标 text-green-500 绿 → 强调色。
+- 实测：门禁 PASS 3 / SKIP 0 / FAIL 0；pytest 26 passed（新增首页覆盖
+  反向验证 4 例）；冒烟全过。版本锚点同步 0.3.0。
+
 ## 0.2.1 (2026-11-22)
 
 修复：浅色模式强调色文字不可读（用户真机截图：「运行中 1」「当前 Bot 玲澜」

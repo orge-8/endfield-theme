@@ -216,7 +216,7 @@ def test_css_contours_and_motion():
     for kf in ("ef-power-on", "ef-power-off", "ef-wipe-in", "ef-wipe-out", "ef-shutter-in", "ef-come"):
         assert f"@keyframes {kf}" in css, f"缺关键帧 {kf}"
     assert "[role='dialog'][data-state='open']" in css
-    assert "[data-sonner-toast][data-state='open']" in css
+    assert "[data-dashboard-toast='true'][data-state='open']" in css
     assert "[role='tabpanel'][data-state='active']" in css
     # 记录行：右移 6px + 左色条
     assert "translateX(6px)" in css
@@ -234,7 +234,7 @@ def test_config_update_switches_accent(env):
     plugin, dist = env
     _apply(plugin)
     _set_config(plugin, accent="amber")
-    asyncio.run(plugin.on_config_update("self", {}, "0.2.1"))
+    asyncio.run(plugin.on_config_update("self", {}, "0.3.0"))
     html = (dist / "index.html").read_text(encoding="utf-8")
     assert "--ef-accent:#FFB31F" in html
     assert "--ef-accent:#B8FF3D" not in html, "旧强调色残留"
@@ -247,7 +247,7 @@ def test_disable_restores_official(env):
     cfg = get_default_config(type(plugin).config_model)
     cfg["plugin"]["enabled"] = False
     bind_context(plugin, plugin.ctx, cfg)
-    asyncio.run(plugin.on_config_update("self", cfg, "0.2.1"))
+    asyncio.run(plugin.on_config_update("self", cfg, "0.3.0"))
     assert (dist / "index.html").read_text(encoding="utf-8") == OFFICIAL_HTML
     assert not (dist / "fonts" / "endfield").exists()
 
@@ -328,6 +328,99 @@ def test_config_schema_localized(module):
     enabled = plugin_section["fields"]["enabled"]
     assert enabled["label"] == "启用主题"
     assert enabled["i18n"]["zh-CN"]["label"] == "启用主题"
+
+
+# ---------------------------------------------------------------- 麦麦观察首页覆盖
+
+def test_preamble_board_tokens(module):
+    """首页看板层 token 必须补齐：--board-*/--surface-*/--chat-* 全部 !important。
+
+    反向验证：首页（ObservationHome）走独立 --board-* 层，此前只覆盖
+    --color-* 导致「麦麦观察页没动」。删掉任一组覆盖即失败。
+    """
+    v = module.resolve("lime", "neutral", "compact")
+    pre = module.build_preamble(v)
+    for token in (
+        "--board-module-radius:0px !important",
+        "--board-module-shadow:none !important",
+        "--board-number-font:",
+        "--surface-radius:0px !important",
+        "--surface-data-texture:none !important",
+        "--list-selected-bg:var(--ef-accent) !important",
+        "--chat-bubble-radius:0px !important",
+        "--obs-heading-font:",
+    ):
+        assert token in pre, f"缺首页 token 覆盖 {token}"
+    # 图表色：系列 1=强调色，不用红绿；深浅两套都覆盖
+    assert f"--board-chart-1:{v['accentHex']} !important" in pre
+    light_block, dark_block = pre.split("html.dark{")
+    assert "--board-accent:var(--ef-ink) !important" in light_block, "浅色看板强调=墨"
+    assert "--board-accent:var(--ef-accent) !important" in dark_block, "深色看板强调=强调色"
+
+
+def test_css_board_home_parts():
+    """首页部件皮肤：看板页签/代号/周期拨杆/输入条/桌宠/会话列表。"""
+    css = (PLUGIN_DIR / "theme" / "endfield-theme.css").read_text(encoding="utf-8")
+    # 看板模块：直角细线 + 顶边粗墨页签（scaleX 0.14 → hover 伸开）
+    assert "[data-board-module='true']::before" in css
+    assert "scaleX(0.14)" in css
+    # 英文代号：三风格统一显示 + // 前缀 + 宽体
+    assert "[data-board-module-code='true']" in css
+    assert "display: inline !important" in css or "display:inline!important" in css
+    assert "content: '// '" in css or "content:'// '" in css
+    # 周期拨杆 / 输入条 / 桌宠 / 会话列表（真机属性名，源码核对）
+    for sel in (
+        "[data-observation-period='true']",
+        "[data-observation-period-thumb='true']",
+        "[data-observation-composer='true']",
+        "[data-desktop-pet-bubble='true']",
+        "[data-conversation-item='true']",
+    ):
+        assert sel in css, f"缺首页部件选择器 {sel}"
+
+
+def test_css_no_red_green_status():
+    """状态色不用红绿：原生绿（hsl(152…)/#22c55e/--m-ok）不得残留为状态色。
+
+    反向验证：ask 模式灯/发送键、图标轨描边、功能状态灯曾是绿色。
+    """
+    import re
+
+    css = (PLUGIN_DIR / "theme" / "endfield-theme.css").read_text(encoding="utf-8")
+    # 只查声明区（注释里引用原生值作说明是允许的）
+    decls = re.sub(r"/\*.*?\*/", "", css, flags=re.S)
+    assert "hsl(152" not in decls, "ask 模式绿残留"
+    assert "#22c55e" not in decls, "图标轨绿描边残留"
+    assert "var(--m-ok)" not in decls, "不得引用移动端绿点变量"
+    # 覆盖规则本身必须存在（方形 + 强调色）
+    assert "[data-dashboard-shell='true'] [data-dashboard-feature-status-light='true']" in css
+    assert "[data-observation-mode-lamp='true']" in css
+
+
+def test_css_real_selectors_only():
+    """选择器必须与 dashboard 1.10.8 真实属性一致，失效选择器不得残留。"""
+    css = (PLUGIN_DIR / "theme" / "endfield-theme.css").read_text(encoding="utf-8")
+    for dead in (
+        "data-sonner-toast",
+        "data-radix-slider",
+        "data-mobile-tab-bar",
+        "data-slot='card'",
+        "data-slot='input'",
+        "data-radix-select-trigger",
+    ):
+        assert dead not in css, f"失效选择器残留：{dead}"
+    for real in (
+        "data-dashboard-toast='true'",
+        "data-dashboard-slider-thumb='true'",
+        "data-mobile-tabbar='true'",
+        "data-dashboard-input='true'",
+        "data-dashboard-select-trigger='true'",
+    ):
+        assert real in css, f"缺真实选择器：{real}"
+    # 玻璃/循环装饰动画必须被压掉
+    assert "backdrop-filter: none !important" in css
+    assert ".animate-ping" in css and ".animate-bounce" in css
+    assert ".m-glass" in css
 
 
 def test_css_assets_exist_and_nonempty():
