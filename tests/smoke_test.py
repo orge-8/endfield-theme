@@ -71,7 +71,7 @@ def main() -> int:
             cfg = get_default_config(type(plugin).config_model)
             cfg["appearance"]["accent"] = "ice"
             bind_context(plugin, ctx, cfg)
-            await plugin.on_config_update("self", cfg, "0.1.0")
+            await plugin.on_config_update("self", cfg, "0.1.1")
             html3 = index.read_text(encoding="utf-8")
             assert "--ef-accent:#7DE6FF" in html3, "热更新后 accent 未切换为 ice"
             assert html3.count('id="endfield-theme-style"') == 1, "热更新后样式块重复"
@@ -79,7 +79,7 @@ def main() -> int:
             # 4. 停用：移除注入与字体
             cfg["plugin"]["enabled"] = False
             bind_context(plugin, ctx, cfg)
-            await plugin.on_config_update("self", cfg, "0.1.0")
+            await plugin.on_config_update("self", cfg, "0.1.1")
             html4 = index.read_text(encoding="utf-8")
             assert html4 == OFFICIAL_HTML, "停用后未还原官方 index.html"
             assert not (dist / "fonts" / "endfield").exists(), "停用后字体目录未清理"
@@ -87,7 +87,7 @@ def main() -> int:
             # 5. 重新启用 + 卸载还原
             cfg["plugin"]["enabled"] = True
             bind_context(plugin, ctx, cfg)
-            await plugin.on_config_update("self", cfg, "0.1.0")
+            await plugin.on_config_update("self", cfg, "0.1.1")
             assert 'id="endfield-theme-style"' in index.read_text(encoding="utf-8")
             await plugin.on_unload()
             assert index.read_text(encoding="utf-8") == OFFICIAL_HTML, "卸载后未还原官方 index.html"

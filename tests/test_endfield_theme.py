@@ -161,7 +161,7 @@ def test_config_update_switches_accent(env):
     plugin, dist = env
     _apply(plugin)
     _set_config(plugin, accent="amber")
-    asyncio.run(plugin.on_config_update("self", {}, "0.1.0"))
+    asyncio.run(plugin.on_config_update("self", {}, "0.1.1"))
     html = (dist / "index.html").read_text(encoding="utf-8")
     assert "--ef-accent:#FFB31F" in html
     assert "--ef-accent:#B8FF3D" not in html, "旧强调色残留"
@@ -174,7 +174,7 @@ def test_disable_restores_official(env):
     cfg = get_default_config(type(plugin).config_model)
     cfg["plugin"]["enabled"] = False
     bind_context(plugin, plugin.ctx, cfg)
-    asyncio.run(plugin.on_config_update("self", cfg, "0.1.0"))
+    asyncio.run(plugin.on_config_update("self", cfg, "0.1.1"))
     assert (dist / "index.html").read_text(encoding="utf-8") == OFFICIAL_HTML
     assert not (dist / "fonts" / "endfield").exists()
 
@@ -210,6 +210,51 @@ def test_foreign_style_untouched(env):
     assert foreign in injected, "不得动其他插件的注入块"
     asyncio.run(plugin.on_unload())
     assert (dist / "index.html").read_text(encoding="utf-8") == html, "卸载只清自己的块"
+
+
+# ---------------------------------------------------------------- 配置页中文化
+
+def test_config_schema_localized(module):
+    """配置页中文显示：字段 label / 选项 choice:i18n / hint 必须齐全。
+
+    反向验证：dashboard plugin-config.tsx 的 select 渲染只认
+    i18n["<locale>"]["choice:<值>"]，未声明时回退英文枚举值；
+    字段标签未声明 label 时回退英文字段名；字段说明只渲染 hint。
+    删掉任一声明都会让本用例失败。
+    """
+    from maibot_sdk.config import generate_plugin_config_schema
+
+    schema = generate_plugin_config_schema(module.EndfieldThemeConfig)
+    appearance = schema["sections"]["appearance"]
+    assert appearance["title"] == "外观"
+    assert appearance["i18n"]["zh-CN"]["title"] == "外观"
+
+    expected_labels = {"accent": "强调色", "paper": "纸色", "density": "密度"}
+    expected_choices = {
+        "accent": {
+            "yellow": "标准黄（#FFFA00）", "lime": "青柠（#B8FF3D）",
+            "ice": "冰蓝（#7DE6FF）", "amber": "琥珀（#FFB31F）",
+        },
+        "paper": {"neutral": "中性灰白", "warm": "暖米色", "cool": "冷青灰"},
+        "density": {
+            "compact": "紧凑（0.9375）", "standard": "标准（1）", "roomy": "宽松（1.0625）",
+        },
+    }
+    for name, label in expected_labels.items():
+        field = appearance["fields"][name]
+        assert field["label"] == label, f"{name} 标签未中文化"
+        zh = field["i18n"]["zh-CN"]
+        assert zh["label"] == label
+        assert zh.get("hint"), f"{name} 缺 hint（前端不渲染 description）"
+        for choice in field["choices"]:
+            assert zh[f"choice:{choice}"] == expected_choices[name][choice], \
+                f"{name} 选项 {choice} 显示名缺失或不符"
+            assert field["i18n"]["en-US"][f"choice:{choice}"], f"{name}/{choice} 缺英文对照"
+
+    plugin_section = schema["sections"]["plugin"]
+    enabled = plugin_section["fields"]["enabled"]
+    assert enabled["label"] == "启用主题"
+    assert enabled["i18n"]["zh-CN"]["label"] == "启用主题"
 
 
 def test_css_assets_exist_and_nonempty():

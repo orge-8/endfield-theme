@@ -23,12 +23,13 @@
 | 配置节 | 字段 | 默认值 | 说明 |
 |---|---|---|---|
 | `[plugin]` | `enabled` | `true` | 是否启用主题（关闭即移除注入，恢复官方外观） |
-| `[plugin]` | `config_version` | `0.1.0` | 配置版本，升级时触发归一化重建 |
-| `[appearance]` | `accent` | `lime` | 强调色：yellow / lime / ice / amber |
-| `[appearance]` | `paper` | `neutral` | 纸色：neutral / warm / cool |
-| `[appearance]` | `density` | `compact` | 密度：compact / standard / roomy |
+| `[plugin]` | `config_version` | `0.1.1` | 配置版本，升级时触发归一化重建 |
+| `[appearance]` | `accent` | `lime` | 强调色：yellow(标准黄) / lime(青柠) / ice(冰蓝) / amber(琥珀) |
+| `[appearance]` | `paper` | `neutral` | 纸色：neutral(中性灰白) / warm(暖米色) / cool(冷青灰) |
+| `[appearance]` | `density` | `compact` | 密度：compact(紧凑) / standard(标准) / roomy(宽松) |
 
 三个外观开关在 WebUI 插件配置页调整，保存后即时重注入，刷新页面生效。
+配置页标签与下拉选项均为中文（zh-CN，另附 en-US 对照）；配置值本身保持英文枚举。
 `config.toml` 由 Runner 自动生成，不要手工提交；写入时不能带 UTF-8 BOM。
 
 ## 命令 / 工具

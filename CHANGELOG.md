@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.1.1 (2026-11-22)
+
+修复：WebUI 配置页英文显示（用户真机反馈「配置页怎么都是英文」）。
+
+- 根因（对照 SDK config.py 与 dashboard plugin-config.tsx 源码核实）：
+  - 字段标签未声明 `json_schema_extra.label`，前端回退英文字段名 accent/paper/density；
+  - 下拉选项显示名只认 `i18n["<locale>"]["choice:<枚举值>"]`，未声明时直接显示英文枚举值；
+  - 字段级说明前端只渲染 `hint`，不渲染 `description`——原中文 description 根本没上页面。
+- 修复：et_config.py 为 enabled/accent/paper/density 补中文 label + hint +
+  zh-CN/en-US 双语 i18n（含全部 10 个选项显示名，如 lime→青柠（#B8FF3D））；
+  两个配置节补 `__ui_i18n__` 与节 docstring。配置值本身保持英文枚举不变，
+  et_variants.resolve 与既有 config.toml 零改动、零迁移。
+- 实测记录（2026-11-22）：
+  - 门禁 gate.sh：PASS 3 / SKIP 0 / FAIL 0（静态 PASS 35 / WARN 1 / FAIL 0，WARN 同 0.1.0 属预期）
+  - pytest：18 passed（新增 test_config_schema_localized：直接调 SDK
+    generate_plugin_config_schema 断言全部 label/hint/choice 中文，删任一声明即失败）
+  - 冒烟：注入→幂等→热更新→停用移除→卸载还原 全过（版本锚点同步 0.1.1）
+  - schema 直打核实：节标题「插件/外观」、字段「启用主题/强调色/纸色/密度」、
+    10 个选项显示名全部中文。
+- 版本锚点同步：_manifest.json / et_config.SUPPORTED_CONFIG_VERSION /
+  tests 版本字符串 / README 配置表 → 0.1.1。
+
 ## 0.1.0 (2026-11-22)
 
 首个版本：终末地风格 WebUI 主题（L2 注入式）。
@@ -27,8 +49,8 @@
   - 环境：devkit .venv SDK 2.23.0（与 PyPI 官方最新一致）
   - 官方最新版已核实（2026-11-22 17:43）：MaiBot v1.4.8（2026-11-20 发布），
     max_version=1.4.8 即官方最新，无需再放宽。
-  - 真机版本核实（用户截图放大 + 用户确认）：**MaiBot 1.4.8**（侧栏第二行 v0.9.2
-    为 WebUI 前端版本标识）。与本地实测基线完全一致。
+  - 真机版本核实（用户截图放大 + 用户确认）：**MaiBot 1.4.8**，一键包（MaiBotOneKey）
+    部署，侧栏第二行 v0.9.2 为一键包版本。与本地实测基线完全一致。
   - min_version 保守放宽至 1.4.2：1.4.2 与 1.4.3 的 plugin_runtime 71 文件
     git blob sha 逐字节一致（含 loader 依赖链）；dashboard 1.10.2 的 observation
     选择器 / dashboard-button 类名 / html.dark 切换 / 行内 token 注入 /
