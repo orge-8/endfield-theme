@@ -1016,6 +1016,46 @@ tbody tr:hover {
   border-radius: 0 !important;
   background: var(--ef-accent) !important;
 }
+/* ---- 分段进度条（0.4.3）----
+   skill motion.md：「加载中，知道进度 → 分段进度条按格跳（24 格）」。
+   progress.tsx 的 Indicator 用 translateX(-(100-p)%) 表达进度，
+   原生 transition-all 是平滑滑动；这里改成 steps 让它**按格跳**。
+   格线用轨道上的 repeating-linear-gradient 画（24 格 = 每格 100/24%），
+   不改 DOM、不引入 JS。轨道底色压深一档，保证黄格与轨道 ≥3:1。 */
+[data-dashboard-progress='true'] {
+  border-radius: 0 !important;
+  background: color-mix(in srgb, var(--ef-ink) 14%, transparent) !important;
+  /* 24 格分隔线：用纸色切出 1px 缝，形成「格」的观感 */
+  background-image: repeating-linear-gradient(
+    to right,
+    transparent 0 calc(100% / 24 - 1px),
+    var(--ef-paper) calc(100% / 24 - 1px) calc(100% / 24)
+  ) !important;
+}
+[data-dashboard-progress-indicator='true'] {
+  border-radius: 0 !important;
+  background: var(--ef-accent) !important;
+  /* 按格跳：240ms 内分 24 档硬切，而非平滑滑动 */
+  transition: transform 240ms steps(24, end) !important;
+}
+/* 格线要压在黄格**之上**才看得见分格，故用轨道的 ::after 覆盖一层。
+   pointer-events:none 保证不影响任何交互。 */
+[data-dashboard-progress='true']::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: repeating-linear-gradient(
+    to right,
+    transparent 0 calc(100% / 24 - 1px),
+    var(--ef-paper) calc(100% / 24 - 1px) calc(100% / 24)
+  );
+}
+/* 不知进度（value=null → Indicator 无 transform，整条满宽）：
+   一段黄格从左往右走。用 :not([style*='translateX']) 区分两种状态。 */
+[data-dashboard-progress-indicator='true']:not([style*='translateX']) {
+  width: 25% !important;
+}
 [data-dashboard-slider-track='true'], [data-dashboard-slider-range='true'], [data-dashboard-slider-thumb='true'] {
   border-radius: 0 !important;
 }
@@ -1025,8 +1065,8 @@ tbody tr:hover {
   border: 2px solid var(--ef-paper) !important;
   box-shadow: none !important;
 }
-/* 加载指示（restart-overlay / setup 的 border-primary 转圈）：
-   浅色下 primary=墨可读；这里统一描边用墨、缺口透明，方形化不适用旋转件。 */
+/* 加载指示 A：border 环转圈（setup/index.tsx:940 等少数几处）。
+   浅色下 primary=墨可读；描边用墨、缺口透明，方形化不适用旋转件。 */
 .animate-spin.border-primary {
   border-color: var(--ef-ink) !important;
   border-top-color: transparent !important;
@@ -1034,6 +1074,40 @@ tbody tr:hover {
 html.dark .animate-spin.border-primary {
   border-color: var(--ef-accent) !important;
   border-top-color: transparent !important;
+}
+/* 加载指示 B：SVG 图标转圈（0.4.3 补齐）。
+   全站数十处是 <Loader2 className="animate-spin"/> / RefreshCw / RotateCcw，
+   **不带 border-primary**，所以上面那条一个也没命中它们。
+   它们走 text-primary / text-muted-foreground / currentColor，
+   其中显式 text-muted-foreground 的那些在浅色下偏弱。
+   统一给 svg.animate-spin 明确颜色，确保双主题都 ≥3:1（图形门槛）。 */
+svg.animate-spin {
+  color: var(--ef-ink) !important;
+}
+html.dark svg.animate-spin {
+  color: var(--ef-accent) !important;
+}
+/* 加载指示 C：重启遮罩的 h-16 w-16 大转圈（restart-overlay.tsx:88/94/100）。
+   skill motion.md 明确「正在处理…**不放转圈**」。64px 转圈是整屏最抢眼的元素，
+   换成一条横走的黄格：保留原 64×64 占位（不改布局），
+   把 SVG 本体当作 8px 高的轨道，用双层 background 画「轨 + 格」。
+   SVG 是替换元素、::after 不可靠，故两层都画在 background 上。
+   走动由 ef-indeterminate-bg 关键帧驱动 background-position（第一层黄格）：
+   属绘制属性、不触发重排；不用 scaleX 呼吸（那是被禁的装饰脉冲）。 */
+svg.animate-spin.h-16 {
+  background-image:
+    linear-gradient(var(--ef-accent), var(--ef-accent)),
+    linear-gradient(
+      color-mix(in srgb, var(--ef-ink) 14%, transparent),
+      color-mix(in srgb, var(--ef-ink) 14%, transparent)
+    ) !important;
+  background-repeat: no-repeat, no-repeat !important;
+  background-size: 25% 8px, 100% 8px !important;
+  background-position: 0 center, 0 center !important;
+  color: transparent !important;
+}
+html.dark svg.animate-spin.h-16 {
+  color: transparent !important;
 }
 
 /* ============ 12. 滚动条：墨色细条 ============ */
@@ -1055,14 +1129,68 @@ html.dark .animate-spin.border-primary {
 [disabled], [aria-disabled='true'], [data-disabled='true'] {
   cursor: not-allowed;
 }
-/* 骨架屏：斜线纹替代脉冲动画 */
+/* ---- 加载态分流（0.4.3）----
+   0.4.2 之前这里是一条无差别的 `.animate-pulse{animation:none;background:斜线纹}`。
+   但 dashboard 把 animate-pulse 用在**四种完全不同的东西**上，一条规则全铺纹造成失显：
+
+     a) 6px 状态小点：MessageList.tsx:137-151「正在思考」三点（h-1.5 w-1.5，
+        bg-primary/70|60|50）、AgentWorkspace.tsx:162 运行点（size-1.5 bg-primary）。
+        6×6 里 45° 斜纹只覆盖 21.5% 面积，条本身又只有 ink 22%，
+        合成后浅色 1.10:1 / 深色 1.14:1（原生 6.69 / 7.66），等于**消失**。
+     b) 14px SVG 图标：prompts.tsx:1074/1141（CheckCircle2 / GitCompareArrows
+        size-3.5 + animate-pulse）。图标底下被铺一层与它无关的斜纹。
+     c) 有完整内容的状态卡：providerStatus.tsx:10 / ModelTable.tsx:80 /
+        ModelCardList.tsx:42（border-amber-500 animate-pulse）。整张卡文字被纹压住。
+     d) 真空骨架：skeleton.tsx:9（bg-primary/10）、CodeEditor.tsx:42、
+        context-items.tsx:290。只有这一类该铺纹。
+
+   skill motion.md「正在处理 → 按钮铺斜线纹、暂停响应，不放转圈」说的是**按钮 busy**，
+   不是「所有 pulse 元素」。故按角色分流：先全部停掉原生脉冲（语法不做发光脉冲），
+   再只给真空骨架铺纹；小点走步进硬亮，图标与内容卡不铺纹。 */
 .animate-pulse {
   animation: none !important;
+}
+/* (d) 真空骨架：斜线纹。用 bg-primary/10 与 bg-muted 这两个「空占位」特征限定，
+   避免命中带内容/带图标的元素。skeleton.tsx 恒带 bg-primary/10。 */
+.animate-pulse.bg-primary\/10,
+.animate-pulse.bg-muted,
+.animate-pulse.bg-muted\/20 {
   background: repeating-linear-gradient(
     -45deg,
     transparent 0 5px,
     color-mix(in srgb, var(--ef-ink) 22%, transparent) 5px 6.5px
   ) !important;
+}
+/* (a) 状态小点：实心方块 + 步进硬亮（不铺纹、不脉冲）。
+   原生三点自带 [animation-delay:150ms|300ms]，直接复用形成错峰，
+   无需 JS、不改 DOM。关键帧只有硬切档位，符合「短硬机械、不发光脉冲」。
+   排除 EmptyState 的装饰光晕（MessageList.tsx:84 带 blur-xl + -z-10，
+   那是发光装饰、不是状态指示，语法里应当消失）。 */
+.animate-pulse.rounded-full:not([class*='blur']) {
+  background: var(--ef-ink) !important;
+  opacity: 1;
+}
+html.dark .animate-pulse.rounded-full:not([class*='blur']) {
+  background: var(--ef-accent) !important;
+}
+/* 装饰光晕：语法无发光，直接不渲染（不影响布局，它本身是 absolute inset-0） */
+.animate-pulse[class*='blur'] {
+  display: none !important;
+}
+/* (b) SVG 图标 busy：只停脉冲，不动背景（图标形状保持完整、颜色跟随按钮文字） */
+svg.animate-pulse {
+  background: none !important;
+}
+/* (c) 有内容的状态卡：左侧 3px 强调色竖条表示「正在处理」，内容不受干扰。
+   原生 border-amber-500 在浅纸只有 2.14:1，一并换成墨/黄描边。
+   用 border-inline-start 而非 ::before，避免与卡片自身伪元素冲突、不重排。 */
+.animate-pulse.border-amber-500 {
+  background: none !important;
+  border-color: var(--ef-rule) !important;
+  border-inline-start: 3px solid var(--ef-ink) !important;
+}
+html.dark .animate-pulse.border-amber-500 {
+  border-inline-start-color: var(--ef-accent) !important;
 }
 /* 重启遮罩的装饰循环动画（ping 扩散圈 + bounce 粒子）：
    语法不做持续循环装饰动画，全部静止；进度条与转圈加载保留（功能性）。 */
@@ -1112,7 +1240,54 @@ html.dark .text-green-500 {
 @keyframes ef-fade-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes ef-fade-out { from { opacity: 1; } to { opacity: 0; } }
 
+/* ---- 加载动效关键帧（0.4.3）---- */
+/* 状态小点步进硬亮：三档硬切（亮 → 亮 → 暗），不用缓动、不做透明度呼吸。
+   一个周期 900ms，三点靠原生 animation-delay 0/150/300ms 错峰成「依次亮起」。
+   只动 opacity（不动宽高/布局），符合 skill 动效属性白名单。 */
+@keyframes ef-dot-step {
+  0%, 33%   { opacity: 1; }
+  34%, 100% { opacity: 0.28; }
+}
+/* 转圈机械步进：8 格跳格，不是匀速旋转（原生 animate-spin 是 linear 匀速）。
+   每格 45°，一圈 8 步；用 steps(8,end) 让它「咔、咔」地走。 */
+@keyframes ef-spin-step {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+/* 不知进度的加载：一段黄格从左往右走，到头回到左边（完成即由 React 卸载而停）。
+   给有真 DOM 容器的场合用（只动 transform）。 */
+@keyframes ef-indeterminate {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(400%); }
+}
+/* 同上，但给「只能画在 background 上」的替换元素（重启遮罩的 SVG 轨道）。
+   只移第一层（黄格）的 position，第二层轨道固定在 0 center。
+   0% → 100% 对应黄格从最左走到最右（background-size 25%，故行程 0%→100%）。 */
+@keyframes ef-indeterminate-bg {
+  from { background-position: 0% center, 0 center; }
+  to   { background-position: 100% center, 0 center; }
+}
+
 @media (prefers-reduced-motion: no-preference) {
+  /* 状态小点：步进硬亮 900ms 一循环，三点用原生 delay 错峰。
+     减少动效时本块整体不生效 → 小点保持 opacity:1 常亮（上面第 14 节兜底），
+     状态仍由旁边「正在思考」文字表达，不会失显。 */
+  .animate-pulse.rounded-full:not([class*='blur']) {
+    animation: ef-dot-step 900ms steps(1, end) infinite !important;
+  }
+  /* SVG 转圈（Loader2 / RefreshCw / RotateCcw）：机械 8 格跳格。
+     原生 animate-spin 是 linear 匀速，这里换成 steps(8,end)。
+     颜色由第 11 节接管（浅墨 / 深黄）。 */
+  svg.animate-spin {
+    animation: ef-spin-step 800ms steps(8, end) infinite !important;
+  }
+  /* 重启遮罩大指示：不转圈，改成一段黄格横走（1200ms 一趟，linear）。
+     写在 svg.animate-spin 之后以覆盖旋转。
+     减少动效时本块不生效 → 黄格静止在最左，仍是可见的「进行中」标记，
+     且旁边有百分比进度条与文案，状态不丢。 */
+  svg.animate-spin.h-16 {
+    animation: ef-indeterminate-bg 1200ms linear infinite !important;
+  }
   /* 对话框/警报框：通电 280 开，180 关（mech，硬停像闸门） */
   [role='dialog'][data-state='open'],
   [role='alertdialog'][data-state='open'] {

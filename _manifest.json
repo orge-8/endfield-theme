@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "id": "github.orge-8.endfield-theme",
-  "version": "0.4.2",
+  "version": "0.4.3",
   "name": "endfield-theme",
   "description": "终末地风格 WebUI 主题：注入式设计语言覆盖，六维外观可配置，官方风格让位，操作反馈动效",
   "author": {

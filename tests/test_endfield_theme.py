@@ -858,3 +858,178 @@ def test_tooltip_rules_survive_stylegate(env):
     for b in branches:
         # 首条分支前可能粘着注释尾，只校验门控串存在
         assert gate in b, f"分支未门控：{b[:80]}"
+
+
+# ---- 0.4.3 加载动效：按角色分流，不再无差别铺斜线纹 ----
+
+def _decls():
+    import re
+    css = (PLUGIN_DIR / "theme" / "endfield-theme.css").read_text(encoding="utf-8")
+    return re.sub(r"/\*.*?\*/", "", css, flags=re.S)
+
+
+def test_pulse_no_longer_blanket_striped():
+    """裸 .animate-pulse 只能停动画，不能再带 background 斜线纹。
+
+    反向验证：把 0.4.2 那条无差别铺纹规则改回来，这条立刻红。
+    """
+    import re
+    d = _decls()
+    m = re.search(r"(?<![\w.:/-])\.animate-pulse\s*\{([^}]*)\}", d)
+    assert m, "缺 .animate-pulse 基础规则"
+    body = m.group(1)
+    assert "animation: none !important" in body, "原生脉冲未停（语法禁发光脉冲）"
+    assert "repeating-linear-gradient" not in body, (
+        "裸 .animate-pulse 仍铺斜线纹：6px 状态点会掉到 1.10:1 而失显"
+    )
+    assert "background" not in body, "裸 .animate-pulse 不应声明任何 background"
+
+
+def test_skeleton_only_striped_by_placeholder_class():
+    """斜线纹只给真空骨架（bg-primary/10 与 bg-muted 占位特征）。"""
+    import re
+    d = _decls()
+    m = re.search(
+        r"\.animate-pulse\.bg-primary\\/10,\s*([\s\S]*?)\{([^}]*)\}", d
+    )
+    assert m, "找不到限定后的骨架铺纹规则"
+    head = ".animate-pulse.bg-primary\\/10," + m.group(1)
+    assert ".animate-pulse.bg-muted" in head
+    assert "repeating-linear-gradient" in m.group(2)
+
+
+def test_status_dot_solid_and_stepped():
+    """6px 状态点：实心墨/黄 + 步进硬亮关键帧，且排除装饰光晕。"""
+    import re
+    d = _decls()
+    sel = r"\.animate-pulse\.rounded-full:not\(\[class\*='blur'\]\)"
+    m = re.search(sel + r"\s*\{([^}]*)\}", d)
+    assert m, "缺状态点实心规则"
+    assert "background: var(--ef-ink) !important" in m.group(1)
+    assert "repeating-linear-gradient" not in m.group(1), "状态点仍被铺纹"
+    m2 = re.search(r"html\.dark " + sel + r"\s*\{([^}]*)\}", d)
+    assert m2 and "var(--ef-accent)" in m2.group(1), "深色状态点未用强调色"
+    # 步进关键帧：只有硬切档位，没有中间缓动值
+    kf = re.search(r"@keyframes ef-dot-step\s*\{([\s\S]*?)\n\}", d)
+    assert kf, "缺 ef-dot-step 关键帧"
+    assert "steps(1, end)" in d, "状态点动画未用 steps 硬切"
+    # 装饰光晕（MessageList.tsx:84 blur-xl）必须消失，而不是变成实心块
+    m3 = re.search(r"\.animate-pulse\[class\*='blur'\]\s*\{([^}]*)\}", d)
+    assert m3 and "display: none !important" in m3.group(1), "发光光晕未关掉"
+
+
+def test_svg_spinner_taken_over():
+    """全站 svg.animate-spin 必须被接管（0.4.2 只命中 setup 的 border 环）。"""
+    import re
+    d = _decls()
+    m = re.search(r"(?<![\w.-])svg\.animate-spin\s*\{([^}]*)\}", d)
+    assert m, "缺 svg.animate-spin 颜色接管"
+    assert "color: var(--ef-ink) !important" in m.group(1)
+    m2 = re.search(r"html\.dark svg\.animate-spin\s*\{([^}]*)\}", d)
+    assert m2 and "var(--ef-accent)" in m2.group(1)
+    assert re.search(r"svg\.animate-spin\s*\{\s*animation: ef-spin-step[^}]*steps\(8, end\)", d), (
+        "SVG 转圈未改机械 8 格步进"
+    )
+
+
+def test_content_card_not_striped():
+    """有内容的状态卡（border-amber-500 animate-pulse）：不铺纹，改左侧竖条。"""
+    import re
+    d = _decls()
+    m = re.search(r"\.animate-pulse\.border-amber-500\s*\{([^}]*)\}", d)
+    assert m, "缺状态卡规则"
+    body = m.group(1)
+    assert "background: none !important" in body, "状态卡内容仍被斜纹压住"
+    assert "border-inline-start: 3px solid var(--ef-ink) !important" in body
+    # SVG 图标 busy 也不铺纹
+    m2 = re.search(r"svg\.animate-pulse\s*\{([^}]*)\}", d)
+    assert m2 and "background: none !important" in m2.group(1)
+
+
+def test_restart_big_spinner_becomes_bar():
+    """重启遮罩 64px 转圈换成横走黄格（skill：正在处理不放转圈）。"""
+    import re
+    d = _decls()
+    m = re.search(r"svg\.animate-spin\.h-16\s*\{([^}]*)\}", d)
+    assert m, "缺重启遮罩大指示规则"
+    body = m.group(1)
+    assert "background-image" in body and "var(--ef-accent)" in body
+    assert "color: transparent !important" in body, "转圈线条未藏掉"
+    assert re.search(
+        r"svg\.animate-spin\.h-16\s*\{\s*animation: ef-indeterminate-bg", d
+    ), "大指示未改成黄格横走（仍在转圈）"
+    kf = re.search(r"@keyframes ef-indeterminate-bg\s*\{([\s\S]*?)\n\}", d)
+    assert kf and "background-position" in kf.group(1)
+
+
+def test_progress_segmented_24_steps():
+    """进度条按格跳：24 格 + steps(24)，用官方稳定钩子而非哈希类名。"""
+    import re
+    d = _decls()
+    m = re.search(r"\[data-dashboard-progress='true'\]\s*\{([^}]*)\}", d)
+    assert m, "缺分段进度条轨道规则"
+    assert "100% / 24" in m.group(1), "格数不是 24"
+    m2 = re.search(
+        r"\[data-dashboard-progress-indicator='true'\]\s*\{([^}]*)\}", d
+    )
+    assert m2 and "steps(24, end)" in m2.group(1), "进度未按格跳（仍平滑滑动）"
+    assert "var(--ef-accent)" in m2.group(1)
+
+
+def test_loading_contrast_both_modes():
+    """加载态图形对比度复算：修复后 ≥3:1，修复前不达标（反面对照）。
+
+    算的是修复后的真实色对；6px 斜纹覆盖率 21.5% 由几何积分得出（见 CHANGELOG）。
+    """
+    def lin(v):
+        c = v / 255
+        return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
+
+    def lum(p):
+        return 0.2126 * lin(p[0]) + 0.7152 * lin(p[1]) + 0.0722 * lin(p[2])
+
+    def hx(h):
+        h = h.lstrip("#")
+        return [int(h[i:i + 2], 16) for i in (0, 2, 4)]
+
+    def ratio(a, b):
+        la, lb = lum(hx(a)), lum(hx(b))
+        return (max(la, lb) + 0.05) / (min(la, lb) + 0.05)
+
+    def mix(fg, alpha, bg):
+        f, b = hx(fg), hx(bg)
+        return "#%02X%02X%02X" % tuple(
+            round(x * alpha + y * (1 - alpha)) for x, y in zip(f, b)
+        )
+
+    # 修复后：实心墨点压白纸 / 实心黄点压深板
+    assert ratio("#161616", "#FFFFFF") >= 3
+    assert ratio("#FFFA00", "#222222") >= 3
+    # 反面对照：0.4.2 的 6px 斜纹点（ink 22% 再乘 21.5% 覆盖率）
+    stripe = mix("#161616", 0.22, "#FFFFFF")
+    effective = mix(stripe, 0.215, "#FFFFFF")
+    assert ratio(effective, "#FFFFFF") < 3, "反面对照失效：斜纹小点本应不达标"
+    assert ratio(effective, "#FFFFFF") < 1.5, "斜纹小点实测约 1.10:1"
+
+
+def test_loading_rules_survive_stylegate(env):
+    """门控后加载态规则逐分支仍带官方风格让位前缀。"""
+    import re
+    plugin, dist = env
+    _apply(plugin)
+    html = (dist / "index.html").read_text(encoding="utf-8")
+    style = html.split('id="endfield-theme-style"')[1].split("</style>")[0]
+    gate = ":not([data-dashboard-style='millennium']):not([data-dashboard-style='future-retro'])"
+    for key in (
+        ".animate-pulse.rounded-full",
+        "svg.animate-spin",
+        ".animate-pulse.border-amber-500",
+        "[data-dashboard-progress='true']",
+    ):
+        assert key in style, f"产物里缺 {key}"
+        idx = style.index(key)
+        # 取该规则所在的选择器列表（回退到上一个 } 或 { 之后）
+        start = max(style.rfind("}", 0, idx), style.rfind("{", 0, idx)) + 1
+        end = style.index("{", idx)
+        for b in style[start:end].split(","):
+            assert gate in b, f"{key} 分支未门控：{b.strip()[:90]}"

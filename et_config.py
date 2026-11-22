@@ -17,7 +17,7 @@ from typing import Literal
 
 from maibot_sdk import Field, PluginConfigBase
 
-SUPPORTED_CONFIG_VERSION = "0.4.2"  # 与 _manifest.json 的 version 保持同步
+SUPPORTED_CONFIG_VERSION = "0.4.3"  # 与 _manifest.json 的 version 保持同步
 
 
 class PluginSectionConfig(PluginConfigBase):

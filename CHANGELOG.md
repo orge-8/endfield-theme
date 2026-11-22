@@ -1,5 +1,53 @@
 # Changelog
 
+## 0.4.3 (2026-11-22)
+
+加载动效整治：修掉 0.4.2 遗留的**功能性回归**（加载指示几乎不可见），并按 skill 补齐机械加载语法。
+
+- 根因：0.2.0 起第 14 节是一条无差别的
+  `.animate-pulse { animation: none; background: 45°斜线纹(6.5px 周期) }`。
+  但 dashboard 把 `animate-pulse` 用在**四种完全不同的东西**上，一条规则全铺纹：
+  - **6px 状态小点**（`MessageList.tsx:137-151` 聊天「正在思考」三点 `h-1.5 w-1.5`
+    `bg-primary/70|60|50`；`AgentWorkspace.tsx:162` 运行点 `size-1.5 bg-primary`）：
+    6×6 里 45° 斜纹按几何积分只覆盖 **21.5%** 面积，纹线本身又只有 `ink 22%`，
+    合成后浅色 **1.10:1** / 深色 **1.14:1**（原生分别是 6.69 / 7.66），
+    远低于图形门槛 3:1 —— 等于**加载指示消失**。这是本次最严重的问题。
+  - **14px SVG 图标**（`prompts.tsx:1074/1141` `CheckCircle2` / `GitCompareArrows`
+    `size-3.5 + animate-pulse`）：图标底下被铺一层与它无关的斜纹。
+  - **有完整内容的状态卡**（`providerStatus.tsx:10`、`ModelTable.tsx:80`、
+    `ModelCardList.tsx:42`，均为 `border-amber-500 animate-pulse`）：整张卡文字被纹压住。
+  - **真空骨架**（`skeleton.tsx:9` `bg-primary/10`、`CodeEditor.tsx:42`、
+    `context-items.tsx:290`）：只有这一类该铺纹。
+  skill `motion.md` 原文是「正在处理 → **按钮**铺斜线纹、暂停响应，不放转圈」，
+  说的是按钮 busy 态，不是「所有 pulse 元素」——属实现偏离规范。
+- 修复 A（按角色分流，第 14 节）：裸 `.animate-pulse` 只停原生脉冲、不再声明 background；
+  斜线纹收窄到 `.bg-primary\/10` / `.bg-muted` / `.bg-muted\/20` 三个空占位特征；
+  状态小点改**实心墨/黄方块 + `ef-dot-step` 步进硬亮**（900ms，`steps(1,end)`，
+  复用原生 `animation-delay:150/300ms` 错峰，不改 DOM、不引入 JS）；
+  SVG 图标 busy 不铺纹；状态卡改**左侧 3px 竖条**（浅墨/深黄）+ 细线边框，内容不受干扰。
+  另把 `MessageList.tsx:84` 的装饰发光光晕（`blur-xl` + `-z-10`）直接 `display:none`（语法无发光）。
+- 修复 B（第 11 节，此前完全漏网）：`.animate-spin.border-primary` **只命中 setup 页 1 处**
+  border 环；全站数十处是 `<Loader2 className="animate-spin"/>` / `RefreshCw` / `RotateCcw`
+  的 **SVG**，不带 `border-primary`，一个也没被接管。现统一给 `svg.animate-spin`
+  明确颜色（浅墨 18.10:1 / 深黄 14.34:1），并把原生 linear 匀速旋转换成
+  `ef-spin-step` **8 格跳格**（`steps(8,end)`，800ms），符合「短硬机械」。
+- 修复 C（重启遮罩）：`restart-overlay.tsx:88/94/100` 的 `h-16 w-16` 大转圈是整屏最抢眼元素，
+  按 skill「不放转圈」改成**一段黄格横走**（`ef-indeterminate-bg` 1200ms linear，
+  保留原 64×64 占位不动布局，双层 background 画「轨 + 格」，图标线条置 transparent）。
+  `animate-ping` 扩散圈与 `animate-bounce` 粒子继续静止。
+- 修复 D（分段进度条）：用官方稳定钩子 `data-dashboard-progress` / `-indicator`
+  （`progress.tsx:15/22`，非哈希类名），轨道画 **24 格**分隔线（`::after` 覆盖层压在黄格之上，
+  `pointer-events:none`），Indicator 的 `translateX` 过渡改 `steps(24,end)` **按格跳**；
+  `value=null`（无 `translateX`）时识别为不知进度，黄格收窄到 25%。
+- 减少动效：全部新动画包在 `@media (prefers-reduced-motion: no-preference)` 内。
+  该设置下小点保持 `opacity:1` 常亮、黄格静止在最左 —— **状态不丢**（旁边有文案与百分比）。
+- 测试：47 → 56（+9：裸 pulse 不再铺纹、骨架限定特征、小点实心+步进+光晕关闭、
+  SVG 转圈接管、状态卡与图标不铺纹、重启大指示改黄格、进度条 24 格 steps、
+  加载态双模式 WCAG 复算并附「斜纹小点 1.10:1」反面对照、门控后逐分支带让位前缀）。
+  **反向验证三轮**：退回无差别铺纹 → 1 红；移除 SVG 转圈接管与重启黄格 → 2 红；
+  进度条退回平滑滑动 + 状态卡退回铺纹 → 2 红。每轮均从备份恢复后复跑 56 全绿。
+- 门禁：PASS 3 / SKIP 0 / FAIL 0（静态 35 PASS / 1 WARN 预期）。
+
 ## 0.4.2 (2026-11-22)
 
 热修真机反馈「浅色模式下黄色字体看不清」（麦麦观察首页 Token 消耗柱图提示框）。
