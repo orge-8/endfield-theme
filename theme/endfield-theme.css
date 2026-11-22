@@ -658,13 +658,39 @@ html.dark [data-observation-composer-input='true']:focus-within {
 }
 
 /* ============ 4f. 侧栏会话列表 ============ */
+/* 侧栏恒深色命令栏，但原生 conversation.css 给条目设 color:var(--surface-ink)，
+   而本主题 preamble 把 --surface-ink 压成 --ef-ink（浅色=墨）→ 浅色模式墨字墨底，
+   会话名称整片消失（深色 --surface-ink=浅字所以正常）。
+   这里强制条目浅字，与命令栏背景配套；选中态仍走强调色底+墨字。 */
 [data-conversation-item='true'] {
   border-radius: 0 !important;
-  border-bottom: 1px solid var(--ef-rule) !important;
+  border-bottom: 1px solid #353535 !important;
+  color: #EDEDED !important;
 }
 [data-conversation-item='true'][data-selected='true'] {
   background: var(--ef-accent) !important;
   color: #161616 !important;
+}
+/* 名称（strong）继承条目浅字；预览/状态用命令栏灰，不随 --muted-foreground 翻车 */
+[data-conversation-item='true'] [data-conversation-item-heading='true'] strong {
+  color: inherit !important;
+}
+[data-conversation-item='true']:not([data-selected='true']) [data-conversation-item-preview='true'] {
+  color: #A3A3A3 !important;
+  opacity: 1 !important;
+}
+[data-conversation-item='true']:not([data-selected='true']) [data-conversation-item-status='true'] {
+  color: #A3A3A3 !important;
+}
+/* 选中态：预览/状态转墨色半透明，保证强调色底上可读 */
+[data-conversation-item='true'][data-selected='true'] [data-conversation-item-preview='true'],
+[data-conversation-item='true'][data-selected='true'] [data-conversation-item-status='true'] {
+  color: rgba(22, 22, 22, 0.72) !important;
+  opacity: 1 !important;
+}
+/* 悬停：命令栏深灰底（原生 --list-hover-bg 浅色是浅灰，会翻车） */
+[data-conversation-item='true']:not([data-selected='true']):hover {
+  background: #2E2E2E !important;
 }
 [data-conversation-avatar='true'],
 [data-conversation-avatar='true'] > span {
@@ -686,6 +712,17 @@ html.dark [data-observation-composer-input='true']:focus-within {
 [data-observation-chat-stack='true']:hover [data-observation-stack-avatar='true'] > [data-conversation-avatar='true'] {
   border-color: var(--ef-accent) !important;
   box-shadow: inset 0 0 0 1px var(--ef-accent) !important;
+}
+/* 折叠态条目选中/悬停：原生 color:var(--surface-ink)（浅色=墨）在命令栏上不可读，
+   强制浅字；背景保持透明（图标轨只靠头像描边标识选中） */
+[data-observation-sidebar='true'][data-collapsed='true'] [data-conversation-item='true'][data-selected='true'],
+[data-observation-sidebar='true'][data-collapsed='true'] [data-conversation-item='true']:hover {
+  background: transparent !important;
+  color: #EDEDED !important;
+}
+/* 堆叠头像分隔边：原生 hsl(var(--background))（浅色=白）在命令栏上突兀，改命令栏底色 */
+[data-observation-stack-avatar='true'] > [data-conversation-avatar='true'] {
+  border-color: var(--ef-command-bar) !important;
 }
 [data-observation-chat-count='true'] {
   border-radius: 0 !important;

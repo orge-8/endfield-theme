@@ -234,7 +234,7 @@ def test_config_update_switches_accent(env):
     plugin, dist = env
     _apply(plugin)
     _set_config(plugin, accent="amber")
-    asyncio.run(plugin.on_config_update("self", {}, "0.4.0"))
+    asyncio.run(plugin.on_config_update("self", {}, "0.4.1"))
     html = (dist / "index.html").read_text(encoding="utf-8")
     assert "--ef-accent:#FFB31F" in html
     assert "--ef-accent:#B8FF3D" not in html, "旧强调色残留"
@@ -247,7 +247,7 @@ def test_disable_restores_official(env):
     cfg = get_default_config(type(plugin).config_model)
     cfg["plugin"]["enabled"] = False
     bind_context(plugin, plugin.ctx, cfg)
-    asyncio.run(plugin.on_config_update("self", cfg, "0.4.0"))
+    asyncio.run(plugin.on_config_update("self", cfg, "0.4.1"))
     assert (dist / "index.html").read_text(encoding="utf-8") == OFFICIAL_HTML
     assert not (dist / "fonts" / "endfield").exists()
 
@@ -664,7 +664,7 @@ def test_html_variant_attrs_lifecycle(env):
     assert "data-ef-ground" in tag
     # 热更新换 ground/motion
     _set_config(plugin, ground="grid", motion="calm")
-    asyncio.run(plugin.on_config_update("self", {}, "0.4.0"))
+    asyncio.run(plugin.on_config_update("self", {}, "0.4.1"))
     html2 = (dist / "index.html").read_text(encoding="utf-8")
     assert 'data-ef-ground="grid"' in html2
     assert 'data-ef-motion="calm"' in html2
@@ -702,3 +702,51 @@ def test_default_appearance_unchanged(env):
     assert 'data-ef-motion="full"' in html
     # ground 变体规则存在但默认不激活（contours 无属性选择器分支）
     assert "html[data-ef-ground='grid']" in html
+
+
+# ---------------------------------------------------------------- 0.4.1 浅色侧栏会话可读性
+
+def test_css_sidebar_conversation_light_readable():
+    """浅色侧栏会话名称必须可读（真机反馈「浅色时左侧变化不完全」）。
+
+    根因：原生 conversation.css 给条目设 color:var(--surface-ink)，
+    本主题 preamble 把 --surface-ink 压成 --ef-ink（浅色=墨），
+    侧栏恒深色命令栏 → 浅色模式墨字墨底，名称整片消失。
+    反向验证：删掉条目强制浅字规则即失败。
+    """
+    import re
+
+    css = (PLUGIN_DIR / "theme" / "endfield-theme.css").read_text(encoding="utf-8")
+    decls = re.sub(r"/\*.*?\*/", "", css, flags=re.S)
+    # 条目本体强制浅字（不跟 --surface-ink 走）
+    m = re.search(r"\[data-conversation-item='true'\]\s*\{([^}]*)\}", decls)
+    assert m, "缺会话条目规则"
+    assert "color: #EDEDED !important" in m.group(1), "条目未强制浅字，浅色会墨字墨底"
+    # 名称继承条目浅字
+    assert "[data-conversation-item-heading='true'] strong" in decls
+    # 非选中预览/状态用命令栏灰
+    assert "[data-conversation-item='true']:not([data-selected='true']) [data-conversation-item-preview='true']" in decls
+    # 选中态预览/状态转墨色半透明（强调色底上可读）
+    assert "[data-conversation-item='true'][data-selected='true'] [data-conversation-item-preview='true']" in decls
+    assert "rgba(22, 22, 22, 0.72)" in decls
+    # 悬停命令栏深灰底（原生 --list-hover-bg 浅色翻车）
+    assert "[data-conversation-item='true']:not([data-selected='true']):hover" in decls
+    # 折叠态条目浅字 + 堆叠头像边改命令栏底色
+    assert "[data-observation-sidebar='true'][data-collapsed='true'] [data-conversation-item='true'][data-selected='true']" in decls
+    assert "[data-observation-stack-avatar='true'] > [data-conversation-avatar='true']" in decls
+    assert "border-color: var(--ef-command-bar) !important" in decls
+
+
+def test_sidebar_conversation_color_not_surface_ink(env):
+    """注入产物里会话条目颜色不得依赖 --surface-ink（浅色=墨会翻车）。"""
+    plugin, dist = env
+    _apply(plugin)
+    html = (dist / "index.html").read_text(encoding="utf-8")
+    style = html.split('id="endfield-theme-style"')[1].split("</style>")[0]
+    import re
+    # 条目规则块内必须是硬浅字，不是 var(--surface-ink)/var(--ef-ink)
+    m = re.search(r"\[data-conversation-item='true'\]\s*\{([^}]*)\}", style)
+    assert m
+    body = m.group(1)
+    assert "#EDEDED" in body
+    assert "--surface-ink" not in body and "var(--ef-ink)" not in body

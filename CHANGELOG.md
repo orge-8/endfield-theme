@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.4.1 (2026-11-22)
+
+热修真机反馈「浅色时左侧变化不完全」：浅色模式侧栏会话名称整片消失。
+
+- 根因：原生 `conversation.css` 给会话条目设 `color: var(--surface-ink)`，
+  本主题 preamble 把 `--surface-ink` 压成 `--ef-ink`（浅色=墨），而侧栏恒深色
+  命令栏 → 浅色模式墨字墨底，名称不可读（深色 `--surface-ink`=浅字所以正常）。
+  预览「空闲」走 status 的 muted-foreground 灰，两种模式都可见，故只有名称消失。
+- 修复（CSS 4f 节）：
+  - 会话条目强制 `color:#EDEDED`（不跟 `--surface-ink` 走），分隔线改 `#353535`；
+  - 名称 strong 继承条目浅字；非选中预览/状态用命令栏灰 `#A3A3A3`；
+  - 选中态预览/状态转墨色半透明 `rgba(22,22,22,.72)`（强调色底上可读）；
+  - 悬停改命令栏深灰 `#2E2E2E`（原生 `--list-hover-bg` 浅色是浅灰会翻车）。
+- 折叠态（图标轨）一并修：
+  - 选中/悬停条目原生 `color:var(--surface-ink)` → 强制浅字、背景透明；
+  - 堆叠头像分隔边原生 `hsl(var(--background))`（浅色=白）→ 改命令栏底色。
+- 测试：41 → 43（+2：浅色侧栏会话可读性反向验证、注入产物条目颜色不依赖 surface-ink）。
+- 门禁：PASS 3 / SKIP 0 / FAIL 0。
+
 ## 0.4.0 (2026-11-22)
 
 对照 endfield-ui skill 补齐三类缺口（grill 决策落定）：官方风格让位、
