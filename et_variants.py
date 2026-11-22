@@ -91,7 +91,12 @@ def build_preamble(variant: dict) -> str:
     a_hex = variant["accentHex"]
     scale = variant["scale"]
 
-    def color_block(p: dict, ink: str, ink2: str, danger: str, trace_hsl: str) -> str:
+    def color_block(p: dict, ink: str, ink2: str, danger: str, trace_hsl: str,
+                    primary_hsl: str) -> str:
+        # primary 语义 = 可读的「品牌色」：dashboard 大量用 text-primary 渲染文字/图标
+        # （运行中计数、当前 Bot 名、GATEWAY 路径等）。浅色纸面上强调色对比度约 1.1:1，
+        # 故浅色 primary=墨色；深色纸面强调色可读，primary=强调色。
+        # 强调色只做填充的部件（按钮/开关/进度条/当前导航）在 CSS 里直接用 --ef-accent。
         return (
             f"--color-background:{hex_to_hsl(p['paper'])} !important;"
             f"--color-foreground:{hex_to_hsl(ink)} !important;"
@@ -99,7 +104,7 @@ def build_preamble(variant: dict) -> str:
             f"--color-card-foreground:{hex_to_hsl(ink)} !important;"
             f"--color-popover:{hex_to_hsl(p['panel'])} !important;"
             f"--color-popover-foreground:{hex_to_hsl(ink)} !important;"
-            f"--color-primary:{a_hsl} !important;"
+            f"--color-primary:{primary_hsl} !important;"
             f"--color-primary-foreground:{hex_to_hsl(INK_LIGHT)} !important;"
             f"--color-primary-gradient:none !important;"
             f"--color-secondary:{hex_to_hsl(p['chip'])} !important;"
@@ -174,9 +179,10 @@ def build_preamble(variant: dict) -> str:
         # 等高线底纹：墨色 18%（skill 基准 9%，按用户要求加强；只铺两角不闭合）
         "--ef-contour:color-mix(in srgb, var(--ef-ink) 18%, transparent);"
     )
+    # primary：浅色=墨（text-primary 文字可读），深色=强调色（深底上可读）
     light = color_block(variant["light"], INK_LIGHT, INK2_LIGHT, DANGER_LIGHT,
-                        hex_to_hsl(INK_LIGHT))
-    dark = color_block(variant["dark"], INK_DARK, INK2_DARK, DANGER_DARK, a_hsl)
+                        hex_to_hsl(INK_LIGHT), hex_to_hsl(INK_LIGHT))
+    dark = color_block(variant["dark"], INK_DARK, INK2_DARK, DANGER_DARK, a_hsl, a_hsl)
     dark_own = (
         f"--ef-ink:{INK_DARK};--ef-ink2:{INK2_DARK};"
         f"--ef-paper:{variant['dark']['paper']};--ef-panel:{variant['dark']['panel']};"

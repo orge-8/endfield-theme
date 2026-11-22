@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.2.1 (2026-11-22)
+
+修复：浅色模式强调色文字不可读（用户真机截图：「运行中 1」「当前 Bot 玲澜」
+「GATEWAY 路径」呈黄字，白底对比度约 1.1:1，违反 skill「浅色主题黄色不能当线或字」）。
+
+- 根因：preamble 把 --color-primary 设成强调色，dashboard 大量用 text-primary
+  渲染文字/图标（HostDashboard 计数与 Bot 名、GATEWAY 路径、配置节标题等）。
+- 修复：primary 语义改为「可读品牌色」——浅色=墨色、深色=强调色（深底上可读）；
+  「选中/当前=强调色填充」的部件在 CSS 显式用 --ef-accent，不再依赖 primary token：
+  - .bg-primary.text-primary-foreground（选中徽章/按钮/多选标签）→ 强调色底+墨字
+  - 开关/复选框/单选选中态、进度条/滑条填充（原有规则保留）
+  - 功能状态灯 enabled → 强调色（原生 hsl(--primary) 浅色下会变墨）
+- 顺带纠正状态色语法（截图里可见的绿/红）：
+  - 分段比例条：emerald→强调色、amber→斜线纹、destructive→墨、空闲→浅灰
+  - 状态灯：方形无辉光；运行=强调色、处理中/异常=墨（红只给删除）、关闭=浅灰
+  - 统计页 --stats-alert 由 destructive 红改墨
+  - 加载转圈 border-primary：浅色墨/深色强调色
+- 实测：门禁 PASS 3 / SKIP 0 / FAIL 0；pytest 22 passed（新增浅色 primary=墨
+  四色遍历 + 强调色填充/状态色反向验证 2 例）；冒烟全过。
+- 版本锚点同步 0.2.1；新增浅色预览页（复现截图场景）+ 深色预览同步重建。
+
 ## 0.2.0 (2026-11-22)
 
 视觉强化（用户反馈「风格特征不够明显，等高线再明显一点，动画效果做了吗」）。

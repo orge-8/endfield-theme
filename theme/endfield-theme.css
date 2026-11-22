@@ -228,6 +228,39 @@ html.dark [data-observation-key='true']:focus-visible {
   outline-color: var(--ef-accent) !important;
 }
 
+/* ============ 3b. 强调色填充件 ============ */
+/* primary token 在浅色=墨（保证 text-primary 文字可读），
+   所以「选中/当前=强调色填充」的部件在这里显式用 --ef-accent。
+   这些部件上的文字统一墨色 #161616（强调色均为亮色，墨字对比度达标）。 */
+.bg-primary.text-primary-foreground {
+  background: var(--ef-accent) !important;
+  color: #161616 !important;
+}
+/* 分段比例条（Bot 总览等）：原生 emerald/amber/destructive 状态色
+   违反「图表不用红绿、红色只给删除」，统一映射：运行=强调色、
+   处理中=斜线纹、异常=墨色、空闲=浅灰。 */
+[data-dashboard-segmented-meter='true'] > span {
+  background: var(--ef-chip) !important;
+}
+[data-dashboard-segmented-meter='true'] > span.bg-primary,
+[data-dashboard-segmented-meter='true'] > span.bg-emerald-500 {
+  background: var(--ef-accent) !important;
+}
+[data-dashboard-segmented-meter='true'] > span.bg-amber-500 {
+  background: repeating-linear-gradient(
+    -45deg,
+    transparent 0 5px,
+    color-mix(in srgb, var(--ef-ink) 22%, transparent) 5px 6.5px
+  ) !important;
+}
+[data-dashboard-segmented-meter='true'] > span.bg-destructive {
+  background: var(--ef-ink) !important;
+}
+/* 统计页告警色 --stats-alert 原生=destructive 红，改墨色（告警不用红） */
+[data-dashboard-shell='true'] {
+  --stats-alert: var(--ef-ink);
+}
+
 /* ============ 4. 卡片/面板：直角细线，无阴影 ============ */
 .bg-card,
 [data-slot='card'] {
@@ -266,15 +299,44 @@ html.dark input:focus-visible, html.dark textarea:focus-visible {
 [role='switch'][data-state='checked'] > span {
   background: #161616 !important;
 }
-/* 复选框/单选：方形，选中=强调色 */
+/* 复选框/单选：方形，选中=强调色。
+   未选中时边框/圆点原生用 border-primary / text-primary（浅色下=墨，可读）；
+   选中后填充强调色、勾/点用墨色。 */
 [role='checkbox'], [role='radio'] {
   border-radius: 0 !important;
 }
 [role='checkbox'][data-state='checked'],
+[role='checkbox'][data-state='indeterminate'],
 [role='radio'][data-state='checked'] {
   background: var(--ef-accent) !important;
   color: #161616 !important;
   border-color: var(--ef-accent) !important;
+}
+/* 单选圆点：原生 background:currentColor，选中时强制墨色 */
+[role='radio'][data-state='checked'] [data-dashboard-radio-mark='true'] {
+  background: #161616 !important;
+}
+/* 状态灯：方形、无辉光；运行=强调色、处理中=墨、异常=墨（红只给删除）、
+   关闭=浅灰。形状统一方形，状态靠颜色+文字区分。 */
+[data-status-light='true'] {
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  border: 1px solid var(--ef-rule) !important;
+  background: var(--ef-chip) !important;
+}
+[data-status-light='true'][data-status='on'] {
+  background: var(--ef-accent) !important;
+  border-color: var(--ef-accent) !important;
+}
+[data-status-light='true'][data-status='mixed'],
+[data-status-light='true'][data-status='error'] {
+  background: var(--ef-ink) !important;
+  border-color: var(--ef-ink) !important;
+}
+/* 功能状态灯（设置页各功能开关旁的指示）：原生 enabled=hsl(--primary)，
+   浅色下 primary=墨可读，但「生效」语义应为强调色填充，显式覆盖。 */
+[data-dashboard-feature-status='true'][data-enabled='true'] [data-dashboard-feature-status-light='true'] {
+  background: var(--ef-accent) !important;
 }
 
 /* ============ 6. 标签页：当前段墨底反白（分段选择例外，不用黄） ============ */
@@ -366,6 +428,16 @@ tbody tr:hover {
   background: var(--ef-ink) !important;
   border: 2px solid var(--ef-paper) !important;
   box-shadow: none !important;
+}
+/* 加载指示（restart-overlay / setup 的 border-primary 转圈）：
+   浅色下 primary=墨可读；这里统一描边用墨、缺口透明，方形化不适用旋转件。 */
+.animate-spin.border-primary {
+  border-color: var(--ef-ink) !important;
+  border-top-color: transparent !important;
+}
+html.dark .animate-spin.border-primary {
+  border-color: var(--ef-accent) !important;
+  border-top-color: transparent !important;
 }
 
 /* ============ 12. 滚动条：墨色细条 ============ */

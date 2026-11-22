@@ -109,6 +109,42 @@ def test_preamble_important_overrides(module):
     assert "html.dark{" in pre, "缺深色主题块"
 
 
+def test_preamble_light_primary_is_ink(module):
+    """浅色 primary=墨（text-primary 文字可读），深色 primary=强调色。
+
+    反向验证：真机浅色模式曾把「运行中 1 / 当前 Bot 名 / GATEWAY 路径」
+    渲染成强调色文字（白底对比度约 1.1:1）。改回 primary=accent 即失败。
+    """
+    v = module.resolve("lime", "neutral", "compact")
+    pre = module.build_preamble(v)
+    light_block = pre.split("html.dark{")[0]
+    dark_block = pre.split("html.dark{")[1]
+    ink_hsl = "0.0 0.0% 8.6%"
+    accent_hsl = v["accentHsl"]
+    assert f"--color-primary:{ink_hsl} !important" in light_block, "浅色 primary 必须是墨色"
+    assert f"--color-primary:{accent_hsl} !important" not in light_block
+    assert f"--color-primary:{accent_hsl} !important" in dark_block, "深色 primary 应为强调色"
+    # 四种强调色下浅色 primary 恒为墨
+    for a in ("yellow", "lime", "ice", "amber"):
+        p = module.build_preamble(module.resolve(a, "neutral", "compact"))
+        assert f"--color-primary:{ink_hsl} !important" in p.split("html.dark{")[0]
+
+
+def test_css_accent_fills_and_status(module):
+    """强调色只做填充：选中件显式 --ef-accent；状态色不用红绿。"""
+    css = (PLUGIN_DIR / "theme" / "endfield-theme.css").read_text(encoding="utf-8")
+    # 选中/当前填充件
+    assert ".bg-primary.text-primary-foreground" in css
+    # 分段条状态映射：emerald→accent、amber→斜线纹、destructive→墨
+    assert "[data-dashboard-segmented-meter='true'] > span.bg-emerald-500" in css
+    assert "[data-dashboard-segmented-meter='true'] > span.bg-destructive" in css
+    # 状态灯：方形无辉光，error 不用红
+    assert "[data-status-light='true'][data-status='error']" in css
+    assert "box-shadow: none !important" in css
+    # 统计告警色改墨
+    assert "--stats-alert: var(--ef-ink)" in css
+
+
 def test_preamble_dark_trace_is_accent(module):
     v = module.resolve("ice", "cool", "standard")
     pre = module.build_preamble(v)
@@ -198,7 +234,7 @@ def test_config_update_switches_accent(env):
     plugin, dist = env
     _apply(plugin)
     _set_config(plugin, accent="amber")
-    asyncio.run(plugin.on_config_update("self", {}, "0.2.0"))
+    asyncio.run(plugin.on_config_update("self", {}, "0.2.1"))
     html = (dist / "index.html").read_text(encoding="utf-8")
     assert "--ef-accent:#FFB31F" in html
     assert "--ef-accent:#B8FF3D" not in html, "旧强调色残留"
@@ -211,7 +247,7 @@ def test_disable_restores_official(env):
     cfg = get_default_config(type(plugin).config_model)
     cfg["plugin"]["enabled"] = False
     bind_context(plugin, plugin.ctx, cfg)
-    asyncio.run(plugin.on_config_update("self", cfg, "0.2.0"))
+    asyncio.run(plugin.on_config_update("self", cfg, "0.2.1"))
     assert (dist / "index.html").read_text(encoding="utf-8") == OFFICIAL_HTML
     assert not (dist / "fonts" / "endfield").exists()
 
