@@ -1,0 +1,10 @@
+/* Saira 可变字体（wdth 50-125 / wght 100-900），SIL OFL 1.1，许可证见同目录 Saira-OFL.txt。
+ * 只声明拉丁范围，中文落到 Noto Sans SC / 微软雅黑。 */
+@font-face {
+  font-family: 'Saira';
+  src: url('/fonts/endfield/Saira.ttf') format('truetype');
+  font-weight: 100 900;
+  font-stretch: 50% 125%;
+  font-style: normal;
+  font-display: swap;
+}

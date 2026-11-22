@@ -1,0 +1,406 @@
+/* endfield-theme：终末地风格 WebUI 主题（自研实现）
+ * 设计语法：单一强调色只做填充 / 切角=可点击 / 宽体大写英文+粗体中文 /
+ * 1px 细线分区 / 无圆角无阴影无发光 / 短硬机械动效。
+ * 变量（--ef-*、--color-* 等）由 et_variants.build_preamble 注入在本块之前。
+ * dashboard 管线把 token 写在 html 行内样式上，故覆盖一律 !important。
+ */
+
+/* ============ 0. 基底 ============ */
+html {
+  font-stretch: 112%;
+  font-variant-numeric: tabular-nums;
+}
+body {
+  background: var(--ef-paper) !important;
+  color: var(--ef-ink) !important;
+  letter-spacing: 0;
+}
+/* 拉丁标签宽体大写；中文不加字距（font-stretch 只作用于可变字体拉丁轴） */
+[data-observation-section-title='true'],
+[data-observation-key-label='true'] {
+  font-stretch: 125%;
+}
+
+/* 全局圆角清零（token 已置 0，这里兜底压 Tailwind 工具类） */
+.rounded-sm, .rounded-md, .rounded-lg, .rounded-xl, .rounded-2xl, .rounded-3xl,
+.rounded-full, .rounded-t-lg, .rounded-t-\[28px\], .sm\:rounded-lg {
+  border-radius: 0 !important;
+}
+/* 全局阴影清零 */
+.shadow, .shadow-sm, .shadow-md, .shadow-lg, .shadow-xl, .shadow-2xl {
+  box-shadow: none !important;
+}
+/* 毛玻璃关闭（modern 风格的 backdrop-filter） */
+[data-dashboard-shell] * {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+
+/* ============ 1. 侧栏：深色命令栏（两套主题恒深色） ============ */
+[data-observation-sidebar='true'] {
+  background: var(--ef-command-bar) !important;
+  border-right: 1px solid #353535 !important;
+  box-shadow: none !important;
+  color: #EDEDED !important;
+  --obs-side-bg: var(--ef-command-bar);
+  --obs-side-border: 1px solid #353535;
+  --obs-side-shadow: none;
+  --obs-key-bg: transparent;
+  --obs-key-ink: #A3A3A3;
+  --obs-key-border: 1px solid transparent;
+  --obs-key-hover: #2E2E2E;
+  --obs-key-on-bg: var(--ef-accent);
+  --obs-key-on-ink: #161616;
+  --obs-key-on-border: 1px solid transparent;
+  --obs-key-shadow: none;
+  --obs-key-on-shadow: none;
+  --obs-radius: 0;
+  --obs-input-bg: #222222;
+  --obs-input-border: 1px solid #353535;
+  --obs-label-ink: #A3A3A3;
+  --obs-plate-bg: var(--ef-accent);
+  --obs-plate-ink: #161616;
+}
+/* 当前导航项：强调色整块填充 + 右下切角 + 加粗（色盲可辨） */
+[data-observation-key='true'] {
+  border-radius: 0 !important;
+  transition: background-color 100ms var(--ef-mech), color 100ms var(--ef-mech);
+}
+[data-observation-key='true'][data-active='true'] {
+  background: var(--ef-accent) !important;
+  color: #161616 !important;
+  font-weight: 700 !important;
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - var(--ef-cut-sm)), calc(100% - var(--ef-cut-sm)) 100%, 0 100%);
+}
+[data-observation-key='true'][data-active='true'] svg {
+  color: #161616 !important;
+}
+[data-observation-key='true']:not([data-active='true']):hover {
+  background: #2E2E2E !important;
+  color: #EDEDED !important;
+}
+[data-observation-icon-key='true'][data-active='true'] {
+  background: var(--ef-accent) !important;
+  color: #161616 !important;
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 5px), calc(100% - 5px) 100%, 0 100%);
+}
+/* 分区标题：// 眉标风格（宽体大写小字） */
+[data-observation-section-title='true'] {
+  color: #A3A3A3 !important;
+  text-transform: uppercase;
+  letter-spacing: 0.14em !important;
+  font-size: 0.6875rem !important;
+}
+/* 侧栏里的输入框 / 按钮跟随深色命令栏 */
+[data-observation-sidebar='true'] input,
+[data-observation-sidebar='true'] textarea {
+  background: #222222 !important;
+  border-color: #353535 !important;
+  color: #EDEDED !important;
+}
+[data-observation-sidebar='true'] .dashboard-button--outline,
+[data-observation-sidebar='true'] .dashboard-button--ghost {
+  color: #EDEDED !important;
+  border-color: #353535 !important;
+}
+/* 品牌区三色条：品红/强调色/薄荷（页面开始处，仅此一处+详情标题下） */
+[data-observation-logo-mark='true'] > span:nth-child(1) { background: var(--ef-tri-a) !important; }
+[data-observation-logo-mark='true'] > span:nth-child(2) { background: var(--ef-accent) !important; }
+[data-observation-logo-mark='true'] > span:nth-child(3) { background: var(--ef-tri-c) !important; }
+[data-observation-brand-vent='true'] { display: none !important; }
+/* 侧栏分隔线 */
+[data-observation-rule='true'] {
+  background: #353535 !important;
+  border-color: #353535 !important;
+}
+
+/* ============ 2. 页栏与主区 ============ */
+[data-observation-page-bar='true'] {
+  border-bottom: 1px solid var(--ef-rule) !important;
+  background: var(--ef-paper) !important;
+}
+[data-observation-shell='true'] {
+  background: var(--ef-paper) !important;
+  color: var(--ef-ink) !important;
+}
+
+/* ============ 3. 按钮：切角=可点击，黄色擦入 ============ */
+.dashboard-button {
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  position: relative;
+  font-weight: 700;
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - var(--ef-cut-btn)), calc(100% - var(--ef-cut-btn)) 100%, 0 100%);
+  transition: color 100ms var(--ef-mech);
+}
+/* 主按钮：静止墨底，悬停强调色从左擦入（伪元素 scaleX，机械曲线） */
+.dashboard-button--default {
+  background: var(--ef-ink) !important;
+  color: var(--ef-paper) !important;
+  overflow: hidden;
+}
+.dashboard-button--default::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--ef-accent);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 280ms var(--ef-mech);
+  z-index: 0;
+}
+.dashboard-button--default:hover::before,
+.dashboard-button--default:focus-visible::before {
+  transform: scaleX(1);
+}
+.dashboard-button--default:hover,
+.dashboard-button--default:focus-visible {
+  color: #161616 !important;
+}
+.dashboard-button--default > * { position: relative; z-index: 1; }
+/* 触屏没有悬停：主按钮静止即强调色底 */
+@media (hover: none) {
+  .dashboard-button--default {
+    background: var(--ef-accent) !important;
+    color: #161616 !important;
+  }
+  .dashboard-button--default::before { display: none; }
+}
+/* 次级/轮廓按钮：浅灰填充，悬停换强调色 */
+.dashboard-button--secondary,
+.dashboard-button--outline {
+  background: var(--ef-chip) !important;
+  color: var(--ef-ink) !important;
+  border: 1px solid var(--ef-rule) !important;
+}
+.dashboard-button--secondary:hover,
+.dashboard-button--outline:hover {
+  background: var(--ef-accent) !important;
+  color: #161616 !important;
+  border-color: var(--ef-accent) !important;
+}
+.dashboard-button--ghost {
+  background: transparent !important;
+  color: var(--ef-ink) !important;
+}
+.dashboard-button--ghost:hover {
+  background: var(--ef-chip) !important;
+}
+/* 红色只给删除 */
+.dashboard-button--destructive {
+  background: var(--ef-danger) !important;
+  color: #FFFFFF !important;
+}
+/* 键盘焦点可见：2px 墨线（深色主题用强调色） */
+.dashboard-button:focus-visible,
+[data-observation-key='true']:focus-visible {
+  outline: 2px solid var(--ef-ink) !important;
+  outline-offset: 2px;
+}
+html.dark .dashboard-button:focus-visible,
+html.dark [data-observation-key='true']:focus-visible {
+  outline-color: var(--ef-accent) !important;
+}
+
+/* ============ 4. 卡片/面板：直角细线，无阴影 ============ */
+.bg-card,
+[data-slot='card'] {
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  border: 1px solid var(--ef-rule) !important;
+  background: var(--ef-panel) !important;
+}
+
+/* ============ 5. 输入控件 ============ */
+input, textarea, select,
+[data-slot='input'],
+[data-radix-select-trigger] {
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+input:focus-visible, textarea:focus-visible {
+  outline: 2px solid var(--ef-ink) !important;
+  outline-offset: -1px;
+}
+html.dark input:focus-visible, html.dark textarea:focus-visible {
+  outline-color: var(--ef-accent) !important;
+}
+/* 开关：方形轨道 + 方形滑块，选中=强调色 */
+[role='switch'] {
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+[role='switch'][data-state='checked'] {
+  background: var(--ef-accent) !important;
+}
+[role='switch'] > span {
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+[role='switch'][data-state='checked'] > span {
+  background: #161616 !important;
+}
+/* 复选框/单选：方形，选中=强调色 */
+[role='checkbox'], [role='radio'] {
+  border-radius: 0 !important;
+}
+[role='checkbox'][data-state='checked'],
+[role='radio'][data-state='checked'] {
+  background: var(--ef-accent) !important;
+  color: #161616 !important;
+  border-color: var(--ef-accent) !important;
+}
+
+/* ============ 6. 标签页：当前段墨底反白（分段选择例外，不用黄） ============ */
+[role='tablist'] {
+  background: var(--ef-chip) !important;
+  border-radius: 0 !important;
+  border: 1px solid var(--ef-rule);
+}
+[role='tab'] {
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  font-weight: 600;
+  transition: background-color 200ms var(--ef-mech), color 200ms var(--ef-mech);
+}
+[role='tab'][data-state='active'] {
+  background: var(--ef-ink) !important;
+  color: var(--ef-paper) !important;
+  box-shadow: none !important;
+}
+
+/* ============ 7. 徽章/标签：墨底白字 + 右下切角 ============ */
+[class*='badge'], .inline-flex.items-center.rounded-md.border {
+  border-radius: 0 !important;
+}
+/* 主徽章 = 编号标签语义 */
+.bg-primary.text-primary-foreground {
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 5px), calc(100% - 5px) 100%, 0 100%);
+}
+
+/* ============ 8. 对话框/浮层：直角细线，遮罩用墨色 ============ */
+[role='dialog'], [role='alertdialog'] {
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  border: 1px solid var(--ef-rule) !important;
+  background: var(--ef-panel) !important;
+}
+[data-radix-popper-content-wrapper] > *,
+[role='menu'], [role='listbox'] {
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  border: 1px solid var(--ef-rule) !important;
+}
+/* 下拉项 hover/focus：浅灰，不用圆角 */
+[role='menuitem'], [role='option'] {
+  border-radius: 0 !important;
+}
+/* 移动端底部面板的圆角顶也压平 */
+[role='dialog'].rounded-t-\[28px\], [role='dialog'][class*='rounded-t'] {
+  border-radius: 0 !important;
+}
+
+/* ============ 9. 提示条：白底细框 + 黄色小旗（不用红色告警） ============ */
+[role='status'], .toast, [data-sonner-toast] {
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  border: 1px solid var(--ef-rule) !important;
+  background: var(--ef-panel) !important;
+  border-left: 4px solid var(--ef-accent) !important;
+}
+/* destructive 提示保留红边（删除语义） */
+[role='status'].destructive, .toast.destructive {
+  border-left-color: var(--ef-danger) !important;
+}
+
+/* ============ 10. 表格/记录行：细线分隔 ============ */
+table, th, td {
+  border-color: var(--ef-rule) !important;
+}
+tr {
+  transition: background-color 100ms var(--ef-mech);
+}
+tbody tr:hover {
+  background: var(--ef-chip) !important;
+}
+
+/* ============ 11. 进度条/滑条：方形，填充=强调色 ============ */
+[role='progressbar'], [role='slider'] {
+  border-radius: 0 !important;
+}
+[role='progressbar'] > * {
+  border-radius: 0 !important;
+  background: var(--ef-accent) !important;
+}
+[data-radix-slider-track], [data-radix-slider-range], [data-radix-slider-thumb] {
+  border-radius: 0 !important;
+}
+[data-radix-slider-range] { background: var(--ef-accent) !important; }
+[data-radix-slider-thumb] {
+  background: var(--ef-ink) !important;
+  border: 2px solid var(--ef-paper) !important;
+  box-shadow: none !important;
+}
+
+/* ============ 12. 滚动条：墨色细条 ============ */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--ef-rule);
+  border-radius: 0;
+}
+::-webkit-scrollbar-thumb:hover { background: var(--ef-ink2); }
+
+/* ============ 13. 选中态文字：强调色荧光笔（只做背景填充） ============ */
+::selection {
+  background: var(--ef-accent);
+  color: #161616;
+}
+
+/* ============ 14. 空状态/禁用：45° 斜线纹 ============ */
+[disabled], [aria-disabled='true'], [data-disabled='true'] {
+  cursor: not-allowed;
+}
+/* 骨架屏：斜线纹替代脉冲动画 */
+.animate-pulse {
+  animation: none !important;
+  background: repeating-linear-gradient(
+    -45deg,
+    transparent 0 5px,
+    color-mix(in srgb, var(--ef-ink) 22%, transparent) 5px 6.5px
+  ) !important;
+}
+
+/* ============ 15. 动效纪律 ============ */
+/* 入场短硬（snap），退出机械（mech）；禁弹跳缩放 */
+[data-state='open'][role='dialog'],
+[data-state='open'][role='alertdialog'] {
+  animation-duration: 280ms !important;
+  animation-timing-function: var(--ef-snap) !important;
+}
+[data-state='closed'][role='dialog'],
+[data-state='closed'][role='alertdialog'] {
+  animation-duration: 180ms !important;
+  animation-timing-function: var(--ef-mech) !important;
+}
+/* 系统减少动态效果：全部静止 */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ============ 16. 移动端 ============ */
+@media (max-width: 1023px) {
+  /* 底部标签栏当前项：整格强调色 + 切角 */
+  [data-mobile-tab-bar] [aria-current='page'],
+  nav[aria-label] a[aria-current='page'] {
+    background: var(--ef-accent) !important;
+    color: #161616 !important;
+    clip-path: polygon(0 0, 100% 0, 100% calc(100% - var(--ef-cut-sm)), calc(100% - var(--ef-cut-sm)) 100%, 0 100%);
+  }
+  /* 触控区域不小于 44px */
+  .dashboard-button { min-height: 44px; }
+}
