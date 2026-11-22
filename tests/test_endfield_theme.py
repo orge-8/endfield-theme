@@ -1033,3 +1033,224 @@ def test_loading_rules_survive_stylegate(env):
         end = style.index("{", idx)
         for b in style[start:end].split(","):
             assert gate in b, f"{key} 分支未门控：{b.strip()[:90]}"
+
+
+# ---- 0.4.4 无障碍焦点环 / 提示条竖旗 / 报错去红 / 深色装饰面
+
+
+def _color_tools():
+    """对比度工具（与 0.4.3 用例同一套算法，WCAG 2.x 相对亮度）。"""
+    def lin(v):
+        c = v / 255
+        return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
+
+    def hx(h):
+        h = h.lstrip("#")
+        return [int(h[i:i + 2], 16) for i in (0, 2, 4)]
+
+    def lum(p):
+        return 0.2126 * lin(p[0]) + 0.7152 * lin(p[1]) + 0.0722 * lin(p[2])
+
+    def ratio(a, b):
+        la, lb = lum(hx(a)), lum(hx(b))
+        return (max(la, lb) + 0.05) / (min(la, lb) + 0.05)
+
+    def mix(fg, alpha, bg):
+        f, b = hx(fg), hx(bg)
+        return "#%02X%02X%02X" % tuple(
+            round(x * alpha + y * (1 - alpha)) for x, y in zip(f, b)
+        )
+
+    return ratio, mix
+
+
+def test_focus_visible_fallback_covers_bare_controls():
+    """焦点环兜底必须覆盖裸 button 与各类 role 控件，不能只认 dashboard-button。
+
+    宿主 205 处裸 <button> 零带 dashboard-button 类；宿主 @layer dashboard-focus
+    全局 outline:none !important，不兜底就等于键盘用户完全没有焦点提示。
+    反向验证：删掉兜底块，这条立刻红。
+    """
+    import re
+    d = _decls()
+    m = re.search(r"(?<![\w.-])button:focus-visible\s*,(.*?)\{([^}]*)\}", d, re.S)
+    assert m, "缺 button:focus-visible 兜底规则"
+    sels, body = m.group(1), m.group(2)
+    for need in (
+        "a:focus-visible",
+        "select:focus-visible",
+        "input:focus-visible",
+        "textarea:focus-visible",
+        "[role='switch']:focus-visible",
+        "[role='checkbox']:focus-visible",
+        "[role='radio']:focus-visible",
+        "[role='tab']:focus-visible",
+        "[tabindex]",
+    ):
+        assert need in sels, f"兜底选择器缺 {need}"
+    # 2px 实线 + !important（要压过宿主 @layer 里的 outline:none !important）
+    assert re.search(r"outline:\s*2px solid var\(--ef-ink\)\s*!important", body)
+    # 宿主同时关了 ring，兜底要一并压掉，避免残留半截光圈
+    assert "--tw-ring-shadow" in body
+
+
+def test_focus_fallback_dark_and_command_bar_use_accent():
+    """深色主题与恒深色命令栏里，焦点环用强调色而非墨（墨压深底看不见）。"""
+    import re
+    d = _decls()
+    m = re.search(r"html\.dark button:focus-visible\s*,(.*?)\{([^}]*)\}", d, re.S)
+    assert m, "缺深色焦点环兜底"
+    assert "outline-color: var(--ef-accent) !important" in m.group(2)
+    for need in ("a:focus-visible", "[role='switch']:focus-visible", "[tabindex]"):
+        assert need in m.group(1), f"深色兜底缺 {need}"
+    # 命令栏恒深色，浅色主题下也要用强调色
+    m2 = re.search(
+        r"\[data-observation-sidebar='true'\] button:focus-visible\s*,(.*?)\{([^}]*)\}",
+        d, re.S,
+    )
+    assert m2, "缺命令栏焦点环规则"
+    assert "outline-color: var(--ef-accent) !important" in m2.group(2)
+
+
+def test_focus_fallback_precedes_specialized_rules():
+    """兜底必须在专用焦点规则之前，否则会冲掉各自的 outline-offset。
+
+    按钮 +2px / 周期拨杆 -2px / 输入框 -1px 三种观感依赖层叠顺序。
+    反向验证：把兜底块挪到文件末尾，这条立刻红。
+    """
+    d = _decls()
+    fallback = d.index("button:focus-visible")
+    for specialized in (
+        ".dashboard-button:focus-visible",
+        "[data-observation-period='true'] > button:focus-visible",
+        "input:focus-visible, textarea:focus-visible",
+    ):
+        assert specialized in d, f"缺专用规则 {specialized}"
+        assert fallback < d.index(specialized), (
+            f"兜底出现在 {specialized} 之后，会覆盖其 outline-offset"
+        )
+    # 专用 offset 仍在
+    assert "outline-offset: -2px" in d
+    assert "outline-offset: -1px" in d
+
+
+def test_toast_flag_readable_both_modes():
+    """提示条竖旗是纯线不是填充：浅色用墨、深色用强调色，均需 ≥3:1。
+
+    反向验证：把 border-left 改回 var(--ef-accent)，浅色断言立刻红。
+    """
+    import re
+    d = _decls()
+    m = re.search(
+        r"\[role='status'\], \.toast, \[data-dashboard-toast='true'\]\s*\{([^}]*)\}", d
+    )
+    assert m, "缺提示条基础规则"
+    body = m.group(1)
+    assert "border-left: 4px solid var(--ef-ink) !important" in body, (
+        "浅色竖旗必须用墨：强调色压白板仅 1.11~1.79:1"
+    )
+    assert "background: var(--ef-panel) !important" in body
+    m2 = re.search(
+        r"html\.dark \[role='status'\], html\.dark \.toast,\s*"
+        r"html\.dark \[data-dashboard-toast='true'\]\s*\{([^}]*)\}", d
+    )
+    assert m2, "缺深色提示条竖旗规则"
+    assert "border-left-color: var(--ef-accent) !important" in m2.group(1)
+
+    ratio, _ = _color_tools()
+    # 修复后：墨压三纸色 panel 全部达标
+    for panel in ("#FFFFFF", "#FFFEFA"):
+        assert ratio("#161616", panel) >= 3
+    # 深色：四强调色压深板达标
+    for accent in ("#FFFA00", "#B8FF3D", "#7DE6FF", "#FFB31F"):
+        assert ratio(accent, "#222222") >= 3
+    # 反面对照：旧实现荧光色压白板，四色 × 三纸色 12 组全部不达标
+    for accent in ("#FFFA00", "#B8FF3D", "#7DE6FF", "#FFB31F"):
+        for panel in ("#FFFFFF", "#FFFEFA"):
+            assert ratio(accent, panel) < 3, "反面对照失效：旧竖旗本应不达标"
+
+
+def test_error_toast_has_no_red():
+    """报错提示条不再着红：宿主删除失败与保存失败共用 .destructive，CSS 分不开。
+
+    严格执行「红色只给删除」，错误靠标题文字表达。
+    反向验证：把 .destructive 红边规则加回来，这条立刻红。
+    """
+    import re
+    d = _decls()
+    assert not re.search(r"\.destructive[^{]*\{[^}]*border-left-color:\s*var\(--ef-danger\)", d), (
+        "报错提示条不得用红色竖旗"
+    )
+    # 红色只保留给真正的删除控件
+    uses = re.findall(r"([^{}]+)\{[^}]*var\(--ef-danger\)[^}]*\}", d)
+    assert uses, "红色应仍用于删除控件"
+    for sel in uses:
+        s = sel.strip()
+        assert ("destructive" in s and "button" in s) or "card-remove" in s, (
+            f"红色出现在非删除语义选择器上：{s[:90]}"
+        )
+
+
+def test_contour_decor_within_band_all_variants(module):
+    """等高线装饰面：三纸色 × 深浅 × paper/panel 共 12 组必须落 1.06~1.60。
+
+    深色 18% 会到 1.670~1.712 超上限，故降到 16%（1.570~1.590）。
+    反向验证：把 dark_own 里的 16% 改回 18%，这条立刻红。
+    """
+    import re
+    import et_variants as V
+    ratio, mix = _color_tools()
+    # 读产物真值：从 build_preamble 的实际输出里取百分比，不读源码常量
+    pre = module.build_preamble(module.resolve("lime", "neutral", "compact"))
+    light_block, dark_block = pre.split("html.dark{")
+    pat = r"--ef-contour:color-mix\(in srgb, var\(--ef-ink\) (\d+)%"
+    lm = re.search(pat, light_block)
+    dm = re.search(pat, dark_block)
+    assert lm, "浅色块缺 --ef-contour 声明"
+    assert dm, "深色块必须自带 --ef-contour 覆盖（否则沿用浅色 18% 会超装饰区间上限）"
+    lp, dp = int(lm.group(1)), int(dm.group(1))
+    assert lp == 18, "浅色等高线保持 18%（用户要求加强）"
+    assert dp == 16, "深色等高线须降到 16% 才落装饰区间"
+
+    for pname, pv in V.PAPERS.items():
+        for mode, ink, pct in (("light", V.INK_LIGHT, lp / 100),
+                               ("dark", V.INK_DARK, dp / 100)):
+            for bn in ("paper", "panel"):
+                bg = pv[mode][bn]
+                v = ratio(mix(ink, pct, bg), bg)
+                assert 1.06 <= v <= 1.60, (
+                    f"{pname}/{mode}/{bn} 装饰面对比度 {v:.3f} 超出 1.06~1.60"
+                )
+    # 反面对照：深色沿用 18% 必超上限
+    for pname, pv in V.PAPERS.items():
+        for bn in ("paper", "panel"):
+            bg = pv["dark"][bn]
+            v = ratio(mix(V.INK_DARK, 0.18, bg), bg)
+            assert v > 1.60, "反面对照失效：深色 18% 本应超上限"
+
+
+def test_new_rules_survive_stylegate(env):
+    """门控后 0.4.4 新规则逐分支仍带官方风格让位前缀。"""
+    plugin, dist = env
+    _apply(plugin)
+    html = (dist / "index.html").read_text(encoding="utf-8")
+    style = html.split('id="endfield-theme-style"')[1].split("</style>")[0]
+    gate = ":not([data-dashboard-style='millennium']):not([data-dashboard-style='future-retro'])"
+    # 注意：门控会把 html.dark X 改写成 html.dark:not(...):not(...) X，
+    # 所以深色分支不能按 "html.dark [role='status']" 字面找。
+    for key in (
+        "button:focus-visible",
+        "[role='switch']:focus-visible",
+        "[role='status']",
+    ):
+        assert key in style, f"产物里缺 {key}"
+        idx = style.index(key)
+        start = max(style.rfind("}", 0, idx), style.rfind("{", 0, idx)) + 1
+        end = style.index("{", idx)
+        for b in style[start:end].split(","):
+            assert gate in b, f"{key} 分支未门控：{b.strip()[:90]}"
+    # 深色提示条竖旗分支单独验（门控后形态 html.dark:not(...):not(...) [role='status']）
+    import re
+    assert re.search(r"html\.dark" + re.escape(gate) + r" \[role='status'\]", style), (
+        "产物里缺深色提示条竖旗规则"
+    )

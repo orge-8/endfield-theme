@@ -267,6 +267,8 @@ def build_preamble(variant: dict) -> str:
         "--ef-mech:cubic-bezier(0.7,0,0.2,1);"
         "--ef-ease:cubic-bezier(0.2,0.7,0.1,1);"
         # 等高线底纹：墨色 18%（skill 基准 9%，按用户要求加强；只铺两角不闭合）
+        # 浅色实测合成对比度 1.453~1.469，落在装饰面区间 1.06~1.60 内。
+        # 深色同用 18% 会到 1.670~1.712（超上限），故在 dark_own 里降到 16%。
         "--ef-contour:color-mix(in srgb, var(--ef-ink) 18%, transparent);"
         # 斜线纹（ground=hatch 与处理中/禁用共用）：45° 墨色 22%
         "--ef-hatch:repeating-linear-gradient(-45deg, transparent 0 5px,"
@@ -285,6 +287,11 @@ def build_preamble(variant: dict) -> str:
         "--board-accent:var(--ef-accent) !important;"
         "--surface-focus:var(--ef-accent) !important;"
         "--obs-edit:var(--ef-accent) !important;"
+        # 等高线深色档：浅墨 #EDEDED 在深底上比墨在浅底上更"跳"，
+        # 同样 18% 合成对比度到 1.670~1.712，超出装饰面区间上限 1.60。
+        # 16% 实测 1.570~1.590（三纸色 × paper/panel 六组合全部落区间），
+        # 是合规范围内的最浓一档，保留用户要的"明显"。
+        "--ef-contour:color-mix(in srgb, var(--ef-ink) 16%, transparent);"
     )
     return (
         f"html{{{light}{shared}}}\n"

@@ -168,6 +168,59 @@ html[data-ef-ground='plain'] [data-observation-shell='true']::before {
   display: none;
 }
 
+/* ============ 2b. 键盘焦点兜底：所有可聚焦控件 ============ */
+/* 宿主 index.css:7-17 有一层 @layer dashboard-focus，把 :focus / :focus-visible 的
+   outline 与 --tw-ring-shadow 全部 !important 关掉。本主题 CSS 不带 @layer，
+   无层声明优先级高于任何 @layer，所以这里的 !important 能压过去。
+
+   但只补 `.dashboard-button` 是不够的：宿主有 205 处裸 <button>（登录页、
+   文件附件、聊天身份、桌宠头像等）**一个都没带 dashboard-button 类**，
+   加上 switch / checkbox / radio / tab / 链接，键盘 Tab 过去全无焦点提示。
+   接管了「关焦点框」这件事就必须补齐，否则等于把无障碍做坏了。
+
+   这条兜底放在所有专用焦点规则**之前**：后面 .dashboard-button(+2px)、
+   [data-observation-period]>button(-2px)、input/textarea(-1px) 各自的
+   outline-offset 会按层叠顺序覆盖这里的默认值，专用观感不变。 */
+button:focus-visible,
+a:focus-visible,
+select:focus-visible,
+summary:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+[role='switch']:focus-visible,
+[role='checkbox']:focus-visible,
+[role='radio']:focus-visible,
+[role='tab']:focus-visible,
+[role='menuitem']:focus-visible,
+[role='option']:focus-visible,
+[tabindex]:not([tabindex='-1']):focus-visible {
+  outline: 2px solid var(--ef-ink) !important;
+  outline-offset: 2px;
+  --tw-ring-shadow: 0 0 #0000 !important;
+}
+html.dark button:focus-visible,
+html.dark a:focus-visible,
+html.dark select:focus-visible,
+html.dark summary:focus-visible,
+html.dark input:focus-visible,
+html.dark textarea:focus-visible,
+html.dark [role='switch']:focus-visible,
+html.dark [role='checkbox']:focus-visible,
+html.dark [role='radio']:focus-visible,
+html.dark [role='tab']:focus-visible,
+html.dark [role='menuitem']:focus-visible,
+html.dark [role='option']:focus-visible,
+html.dark [tabindex]:not([tabindex='-1']):focus-visible {
+  outline-color: var(--ef-accent) !important;
+}
+/* 命令栏恒深色：里面的控件焦点环用强调色，不跟全局浅色 token 走墨（会看不见） */
+[data-observation-sidebar='true'] button:focus-visible,
+[data-observation-sidebar='true'] a:focus-visible,
+[data-observation-sidebar='true'] input:focus-visible,
+[data-observation-sidebar='true'] [tabindex]:not([tabindex='-1']):focus-visible {
+  outline-color: var(--ef-accent) !important;
+}
+
 /* ============ 3. 按钮：切角=可点击，黄色擦入 ============ */
 .dashboard-button {
   border-radius: 0 !important;
@@ -984,18 +1037,31 @@ html.dark input:focus-visible, html.dark textarea:focus-visible {
   border-radius: 0 !important;
 }
 
-/* ============ 9. 提示条：白底细框 + 黄色小旗（不用红色告警） ============ */
+/* ============ 9. 提示条：白底细框 + 左侧竖旗（不用红色告警） ============ */
+/* 竖旗是**一条纯线**，不是填充：它旁边没有同色底，可见性只能靠自身与纸的色差。
+   原先用 --ef-accent，浅色下是荧光色压纯白 panel，实测四强调色 × 三纸色 12 组
+   全部不达标（yellow 1.11 / lime 1.21 / ice 1.44 / amber 1.79，要求 >= 3）——
+   等于这条旗不存在。按「底色归主题、文字与线归应用」成对接管的规矩：
+   浅底用墨（压白板 18.1:1），深底用强调色。与焦点环、状态灯的处理一致。
+   黄色仍留在按钮 / 徽章 / 选中态等**填充**语义处，不受影响。 */
 [role='status'], .toast, [data-dashboard-toast='true'] {
   border-radius: 0 !important;
   box-shadow: none !important;
   border: 1px solid var(--ef-rule) !important;
   background: var(--ef-panel) !important;
-  border-left: 4px solid var(--ef-accent) !important;
+  border-left: 4px solid var(--ef-ink) !important;
 }
-/* destructive 提示保留红边（删除语义） */
-[role='status'].destructive, .toast.destructive {
-  border-left-color: var(--ef-danger) !important;
+html.dark [role='status'], html.dark .toast,
+html.dark [data-dashboard-toast='true'] {
+  border-left-color: var(--ef-accent) !important;
 }
+/* 报错提示条不再单独着色。
+   宿主把「删除失败」和「保存失败」「学习配置保存失败」等一律标成同一个
+   .destructive 类（toast.tsx:40，无额外 data 属性），CSS 无法区分二者。
+   既然分不开，就统一走上面的墨/黄竖旗，严格执行「红色只给删除」——
+   错误由标题文字「XX失败」表达，不靠颜色。
+   红色仍保留给真正的删除控件：.dashboard-button--destructive、
+   [data-observation-card-remove]。 */
 
 /* ============ 10. 表格/记录行：细线分隔 ============ */
 table, th, td {

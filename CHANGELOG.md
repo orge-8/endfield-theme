@@ -1,5 +1,103 @@
 # Changelog
 
+## 0.4.4 (2026-11-23)
+
+按 endfield-ui skill 全量审计后的四项整治：无障碍焦点环、提示条竖旗可见性、
+报错配色语义、深色装饰面对比度区间。前三项经用户逐项裁决后实施。
+
+### A. 键盘焦点环补齐（无障碍，影响面最大）
+
+- 根因：宿主 `index.css:7-17` 有一层
+  `@layer dashboard-focus { :focus, :focus-visible { outline: none !important;
+  --tw-ring-shadow: 0 0 #0000 !important } }`，**全局关掉焦点框**。
+  本主题此前只给 `.dashboard-button` / `[data-observation-key]` /
+  `[data-observation-period] > button` / `input,textarea` 四类补了焦点环。
+- 但宿主里有 **205 处裸 `<button>`，带 `dashboard-button` 类的 0 处**
+  （`routes/auth.tsx:365`、`chat/FileAttachment.tsx:23`、
+  `ChatUserIdentity.tsx:55/89`、`LocalBotAvatarSettings.tsx:23` 等），
+  加上 switch / checkbox / radio / tab / 链接，**键盘 Tab 过去完全没有焦点提示**。
+  接管了「关焦点框」这件事却没补齐，等于把无障碍做坏了。
+- 修复：新增第 2b 节兜底，覆盖
+  `button / a / select / summary / input / textarea /
+  [role=switch|checkbox|radio|tab|menuitem|option] / [tabindex]:not([tabindex='-1'])`
+  的 `:focus-visible`，2px 实线 + `!important`，并一并压掉 `--tw-ring-shadow`。
+  浅色墨 `--ef-ink`、深色 `--ef-accent`；命令栏恒深色故单独强制强调色。
+- 层叠：本主题 CSS **不带 `@layer`**，无层声明优先级高于任何 `@layer`，
+  因此 `!important` 能压过宿主那层。兜底块放在**所有专用焦点规则之前**，
+  让按钮 `+2px` / 周期拨杆 `-2px` / 输入框 `-1px` 各自的 `outline-offset` 按顺序覆盖，
+  既有观感不变。
+
+### B. 提示条竖旗改墨（浅色下原本等于不存在）
+
+- 根因：第 9 节 `border-left: 4px solid var(--ef-accent)` 落在
+  `background: var(--ef-panel)`（浅色纯白）。这是**一条纯线，不是填充**——
+  旁边没有同色底，可见性只能靠自身与纸的色差。实测四强调色 × 三纸色 12 组：
+  yellow **1.11** / lime（默认）**1.21** / ice **1.44** / amber **1.79**，
+  按「文字与线 ≥3:1」**全部不达标**。
+- 对照：按钮 hover(`:224`)、radio(`:789`)、状态灯(`:808`)、选项指示器(`:965`)
+  四处也用 accent 描边，但它们**同时声明 `background: var(--ef-accent)`**，
+  边与填充同色属填充语义 ⇒ 合规，本次不动。
+- 修复：浅色竖旗改 `--ef-ink`（压白板 18.1:1），深色新增 `html.dark` 分支用
+  `--ef-accent`。与焦点环、状态灯「浅底用墨、深底用黄」的处理一致。
+  黄色仍留在按钮 / 徽章 / 选中态等**填充**语义处。
+
+### C. 报错提示条去掉红色（严格执行「红色只给删除」）
+
+- 根因：旧版 `[role='status'].destructive, .toast.destructive` 保留红边，
+  注释写「删除语义」。但宿主 `toast.tsx:40` 把**「删除失败」与「保存失败」
+  「学习配置保存失败」等一律标成同一个 `.destructive` 类**，无额外 data 属性，
+  **CSS 无法区分二者**。旧实现等于把红给了报错，违反 skill「红色只给删除」。
+- 修复（用户裁决：报错一律去红）：删除该规则，所有提示条统一走 B 的墨/黄竖旗，
+  错误由标题文字「XX失败」表达，不靠颜色。
+- 红色保留给真正的删除控件：`.dashboard-button--destructive`(`:288`)、
+  `[data-observation-card-remove]`(`:609`)。全文件 `--ef-danger` 消费者已复核为这 2 处。
+- 已知代价：删除失败的提示也不再是红的，扫视时无法靠颜色区分成功/失败。
+
+### D. 深色等高线降到 16%（落进装饰面对比度区间）
+
+- skill `verification.md` 装饰面区间 **1.06–1.60**（有下限也有上限）。
+  `--ef-contour` 此前两模式共用 `ink 18%`（0.2.0 按用户「再明显一点」从 9% 提上来）。
+  浅色实测 1.453–1.469 ✅；**深色 1.670–1.712，六组合全部超上限**。
+  原因：浅墨 `#EDEDED` 在深底上比墨在浅底上更「跳」，同 alpha 不等效。
+- 修复：`dark_own` 新增 `--ef-contour: ink 16%`，实测 **1.570–1.590**，
+  三纸色 × paper/panel 六组合全部落区间，且是合规范围内**最浓一档**，
+  保留用户要的「明显」。浅色保持 18% 不变。
+- 全量复核：三纸色 × 深浅 × paper/panel = **12 组，超区间 0**。
+
+### 验证
+
+- 用例 56 → **63**（新增 7 条）：焦点兜底覆盖面 / 深色与命令栏用强调色 /
+  兜底先于专用规则（层叠顺序）/ 竖旗双模式 ≥3 含 12 组反面对照 /
+  报错无红且红色只在删除选择器 / 装饰面 12 组落区间含深色 18% 反面对照 /
+  新规则门控后逐分支带让位前缀。
+- **三轮反向验证**（改回旧实现 → 确认对应用例 FAIL → 从备份恢复 → 全绿）：
+  1. 整块移除焦点兜底 → **4 红**（三条焦点用例 + 门控用例）
+  2. 竖旗退回 accent + 加回 destructive 红边 → **3 红**
+  3. 移除深色 contour 覆盖（退回共用 18%）→ **1 红**
+  每轮恢复后 63 passed，且 `diff` 确认与备份逐字节一致。
+- 门禁 `gate.sh`：**PASS 3 / SKIP 0 / FAIL 0**；check_plugin 35 PASS / 1 WARN / 0 FAIL
+  （WARN =「未发现任何组件装饰器」，纯注入式主题插件本就没有组件，属预期）。
+
+### 本次审计已验证合规、未改动的项
+
+reduced-motion 门控 0 条漏网（3 个 `infinite` 全在 `no-preference` 块内，
+18 条 `!important` 动画逐条核验）；致产属性 `will-change`/`filter`/`container-type`/
+`contain`/`perspective` 零命中；圆角零残留、阴影仅 1 处硬边 `inset 0 0 0 1px`；
+切角压字逐尺寸算过 12 组全安全；墨字压四 accent 10.10–16.31 均 ≥7；
+宿主 CSS 零处把 chart 色写成 `color:`；`--list-selected-*`/`--chat-outgoing-*` 成对接管；
+`:713` 头像描边已核实在恒深色命令栏内（`ObservationSidebar.tsx:553`）；
+字体许可 `fonts/Saira-OFL.txt` 已随附。
+
+### 已知缺口（本次未做，待裁决）
+
+- `endfield-fx.js` 保存反馈只认中文（`/保存/`、`indexOf('配置已保存')`），
+  宿主为四语（en `Plugin configuration saved` / ja `保存しました` / ko `저장됨`），
+  非中文界面下黄穿按钮 / 「已保存」替换 / 删行 FLIP 全部不触发。
+  同文件深浅揭幕那段反而做了四语正则，说明是遗漏而非设计。
+- `html { font-stretch: 112%; font-variant-numeric: tabular-nums }` 全局字体声明
+  会泄漏到宿主嵌入的第三方内容（属行为变更，已向用户解释，等授权）。
+- `--ef-cut-panel`（26px 基准）定义了但消费者 0 处，死代码。
+
 ## 0.4.3 (2026-11-22)
 
 加载动效整治：修掉 0.4.2 遗留的**功能性回归**（加载指示几乎不可见），并按 skill 补齐机械加载语法。
