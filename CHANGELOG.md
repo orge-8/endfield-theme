@@ -22,11 +22,17 @@
     WARN 为「无组件装饰器」——纯注入插件无 Command/Tool/Hook，属预期）
   - 冒烟：注入→幂等→热更新→停用移除→卸载还原 全过
   - pytest：17 passed（变体解析 4 / preamble 4 / 注入闭环 9）
-  - PluginLoader 加载探针：MaiBot-host-1.4.8 源码，host 1.4.3~1.4.8 / sdk 2.23.0，
+  - PluginLoader 加载探针：MaiBot-host-1.4.8 源码，host 1.4.2~1.4.8 / sdk 2.23.0，
     加载成功 1 插件、instance=yes、失败 0
   - 环境：devkit .venv SDK 2.23.0（与 PyPI 官方最新一致）
-  - ⚠ MaiBot 官方最新 Release 未核实（GitHub API 限额），max_version=1.4.8 为本地
-    最新源码实测值；官方若有更新版本需补测后再放宽。
+  - 官方最新版已核实（2026-11-22 17:43）：MaiBot v1.4.8（2026-11-20 发布），
+    max_version=1.4.8 即官方最新，无需再放宽。
+  - 真机版本核实（用户截图）：MaiBot 1.4.2 + WebUI 1.10.2。
+    兼容性证据：1.4.2 与 1.4.3 的 plugin_runtime 71 文件 git blob sha 逐字节一致
+    （含 loader 依赖链）；dashboard 1.10.2 的 observation 选择器 / dashboard-button
+    类名 / html.dark 切换 / 行内 token 注入 / get_dist_path 与 1.10.8 全部一致。
+    min_version 由 1.4.3 降为 1.4.2（反向验证：min=1.4.3 时 host 1.4.2 报
+    「Host 版本不兼容」拒载；min=1.4.2 时 errors=0）。
 - 已知边界：
   - CSS 选择器基于 dashboard 1.10.8（host 1.4.8 配套）源码核对；dashboard 大版本
     升级后若类名/结构变化需跟进维护。
