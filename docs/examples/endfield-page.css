@@ -1,0 +1,81 @@
+/* endfield-page.css — 插件自定义页面的可选「终末地风味」片段。
+ *
+ * 这是 B 层（可选）。A 层（配色 + 直角）你什么都不用做就已经生效了，
+ * 只要你正确消费 --maibot-* 令牌。本片段只补宿主探针**传不进来**的特征：
+ * 切角、// 眉标、机械感边框。
+ *
+ * 用法：把本文件内容内联进你的 webui/*.html 的 <style> 里，
+ * 并一并内联 endfield-page-adapter.js（CSP 禁止外链，详见 ../plugin-page-adaptation.md）。
+ *
+ * 门控：所有规则都带 html[data-ef-page='on']，由 adapter.js 探测后挂上。
+ * 没装主题时属性不存在 ⇒ 本片段整体不生效 ⇒ 你的页面保持官方观感。
+ *
+ * 三条硬约束（写自己的规则时也请遵守）：
+ *   1. 只用 --maibot-* 令牌取色，不要写死十六进制。宿主只传这 13 个令牌，
+ *      主题的 --ef-* 变量**不会**出现在 iframe 里。
+ *   2. 不要试图用 clip-path 之外的方式做切角（border-image 之类会吃掉边框色）。
+ *   3. 切角幅度别超过容器内边距，否则会切掉文字。下面给的值已按 8px 内边距核算。
+ */
+
+/* ---------- 1. 切角：可点击的东西才切 ---------- */
+/* 宿主把 11 项外观属性传进来，clip-path 不在其中，所以必须自己写。
+   幅度 6px：小于常见按钮内边距（8px 16px），不会压字。 */
+html[data-ef-page='on'] .maibot-button,
+html[data-ef-page='on'] button.ef-cut {
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%);
+}
+/* 徽章/编号标签：幅度更小，因为内边距只有 3px 8px */
+html[data-ef-page='on'] .maibot-badge {
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 4px), calc(100% - 4px) 100%, 0 100%);
+}
+/* 卡片不切角：卡片是容器不是控件，切角语义是「可点击」。
+   容器只靠直角 + 细线表达，这与主题本体一致。 */
+
+/* ---------- 2. 眉标：分区标题前加 // ---------- */
+/* 用宿主传来的次要墨色，不自己造灰。 */
+html[data-ef-page='on'] .maibot-card-header::before,
+html[data-ef-page='on'] .ef-eyebrow::before {
+  content: '// ';
+  color: var(--maibot-muted);
+}
+/* 拉丁代号宽体大写；中文不加字距（font-stretch 只作用于可变字体拉丁轴） */
+html[data-ef-page='on'] .ef-code {
+  font-family: var(--maibot-font-mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--maibot-muted);
+}
+
+/* ---------- 3. 机械感：去圆角残留、去柔和阴影 ---------- */
+/* A 层已经把 --maibot-radius 变成 0，但凡是你自己写死圆角的地方要自己收。
+   这里给一个兜底，把你页面里常见的圆角写法一并压平。 */
+html[data-ef-page='on'] .maibot-card,
+html[data-ef-page='on'] .maibot-input,
+html[data-ef-page='on'] .maibot-select,
+html[data-ef-page='on'] .maibot-inset {
+  border-radius: 0;
+}
+/* 阴影：只允许硬边描边，不要柔和投影 */
+html[data-ef-page='on'] .ef-selected {
+  box-shadow: inset 0 0 0 1px var(--maibot-primary);
+}
+
+/* ---------- 4. 数字：等宽对齐 ---------- */
+/* 编号、计数、百分比一律 tabular，避免跳动。 */
+html[data-ef-page='on'] .maibot-number,
+html[data-ef-page='on'] .ef-num {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- 5. 加载态：不知进度时用步进，不要匀速转圈 ---------- */
+/* 只在你自己画加载指示时用得上。宿主不会把主题的动效传进来。 */
+@keyframes ef-page-step {
+  0%, 33% { opacity: 1; }
+  34%, 100% { opacity: 0.28; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  html[data-ef-page='on'] .ef-dot {
+    animation: ef-page-step 900ms steps(1, end) infinite;
+  }
+}
+/* 减少动效时上面的块整体不生效 ⇒ 点保持常亮，状态由旁边文字表达，不会失显。 */
