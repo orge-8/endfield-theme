@@ -3,6 +3,8 @@
 
 __pycache__/
 *.py[cod]
+# pytest 的 nodeids 会内嵌本机绝对路径，不入库
+.pytest_cache/
 .venv/
 data/
 *.db
