@@ -88,7 +88,7 @@ font-family  font-weight  font-size  line-height
 | **切角 `clip-path`** | ❌ | 不在 11 项里 |
 | `//` 眉标、等高线底纹 | ❌ | 伪元素 / 背景图，采样不到 |
 | 机械动效、保存黄穿反馈 | ❌ | 依赖父页 DOM 观察，跨沙箱做不到 |
-| 焦点环 | ❌ | **宿主主动关掉**，见第 3 节 |
+| 焦点环 | ❌ | **宿主主动关掉**，插件侧不要写，见第 3 节 |
 
 **字体特例**：`pluginPageFonts()`（`plugin-page-theme.ts:28-37`）只白名单 4 个宿主字体
 （Departure Mono / Ark Pixel 12px SC / Jersey 20 / JetBrains Mono），
@@ -99,20 +99,41 @@ font-family  font-weight  font-size  line-height
 
 ---
 
-## 1. A 层（必做）：正确消费令牌，配色与直角自动跟随
+## 1. A 层：正确消费令牌，配色与直角自动跟随
 
 **这一层不需要装 endfield-theme 也该做**，做了就同时适配官方三风格。
 
-### 1.1 页面根用 `maibot-page`
+> **⚠ 先分清两条路线（1.1 / 1.2 只适用于路线一）**
+>
+> | | 路线一：全面接受宿主观感 | 路线二：只跟形状，保住原样 |
+> |---|---|---|
+> | 做法 | 用 `maibot-page` + 宿主组件类（1.1 / 1.2） | 只用令牌（1.3）+ 第 2 节探测门控 |
+> | 未装主题时 | 外观**由宿主决定**（padding / 字体被组件类接管） | 外观**与改造前逐像素一致** |
+> | 适合 | 新页面，或愿意把观感交给宿主 | 已有一套自洽视觉的成熟页面 |
+>
+> **关键事实**：宿主组件类是**无条件注入**的（`plugin-page-theme.ts:120-130`，
+> 与风格、与是否装主题都无关），且 `:133`/`:137` 写死了 padding。
+> 所以「加组件类」和「没装主题时外观不变」**不可能同时成立**。
+> 选路线二就**别加组件类**，实例见第 6.2 节（cv_lyric_context 2.23.0）。
+>
+> 1.3 起的各条（令牌回退值、圆角钳位、深色、CSP）**两条路线都必做**。
+
+### 1.1 页面根用 `maibot-page`（路线一）
 
 ```html
 <body class="maibot-page">
 ```
 
 它负责把背景 / 文字 / 字体设成当前主题值（`plugin-page-theme.ts:132`）。
-**不写这个类，深色主题下你的页面底色会是 iframe 默认白 ⇒ 白底浅字，直接翻车。**
+**如果你没有任何自己的底色声明**，不写这个类时深色主题下页面底色会是 iframe 默认白
+⇒ 白底浅字，直接翻车。
 
-### 1.2 控件用宿主组件类
+路线二的等价做法：自己在根容器上写
+`background: var(--maibot-background, 回退值); color: var(--maibot-foreground, 回退值)`
+（cv_lyric 的 `.cvl-root` 就是这么做的，所以它不加 `maibot-page` 也不会翻车）。
+**要点是「底色和文字色必须来自令牌」，不是「必须有那个类」。**
+
+### 1.2 控件用宿主组件类（路线一）
 
 ```html
 <button class="maibot-button maibot-button-primary">开始训练</button>
@@ -125,7 +146,11 @@ font-family  font-weight  font-size  line-height
 ```
 
 宿主采样真实组件的 11 项属性写进这些类 ⇒ **配色、圆角、边框、字体一并跟随**。
-自己写裸 `<button>` 不加类，就只能靠令牌手动上色，形状全丢。
+自己写裸 `<button>` 不加类，就只能靠令牌手动上色，形状要自己补。
+
+⚠ **代价**：这些类同时带宿主写死的 `padding`（`:133` 按钮 `8px 16px`、`:137` 卡片 `20px`），
+而且**没装主题时也生效**。如果你的按钮/卡片已有自己的内边距，加类会把它改掉。
+不接受这个代价就走路线二（第 2 节门控），别加类。
 
 ### 1.3 自定义颜色一律走令牌，并给回退值
 
@@ -152,16 +177,25 @@ font-family  font-weight  font-size  line-height
 border-radius: calc(var(--maibot-radius) - 4px);   /* ⇒ -4px */
 ```
 
-负圆角是**非法值，整条声明被丢弃** ⇒ 元素回退到它自己的默认圆角或继承值，
-你以为压平了其实没有。`cv_lyric_context` 现在有 4 处这种写法。
+负圆角是**非法值，整条声明被丢弃**。
 
-正确写法：
+⚠ **这里有个反直觉的细节，别搞错**：`border-radius` **不继承**，声明被丢弃后元素取的是
+该属性的**初始值 `0`**，不是「它自己的默认圆角」。所以在本主题下（令牌已经是 0）
+它**碰巧仍然是方角**——是**隐患，不是现症**。真正会出问题的是令牌为某个小正值时
+（例如官方风格把 `--visual-radius-lg` 调成 `2px`），`2px - 4px = -2px` 同样非法，
+你想要的层级差就静默消失了。
+
+不管哪种情况都该钳住，因为「靠非法值恰好得到想要的结果」不是设计：
 
 ```css
 border-radius: var(--maibot-radius);          /* 直接用 */
-/* 想要层级差就用 clamp 夹住下界 */
+/* 想要层级差就把下界夹在 0 */
 border-radius: max(0px, calc(var(--maibot-radius) - 4px));
 ```
+
+实际数量（2026-11-23 复核）：`cv_lyric_context` 曾有 **7 处**（不是早期文档写的 4 处），
+`char-recog` 有 **1 处**（`.capture-thumb img`）。cv_lyric 的 7 处已在 2.23.0 全部钳住；
+char-recog 那 1 处仍在，因主题下属上述「隐患非现症」情形，未列入该轮改动范围。
 
 ### 1.5 ⚠ 装饰性圆角要自己收
 
@@ -269,11 +303,13 @@ html[data-ef-page='on'] .maibot-button {
 
 ---
 
-## 3. 焦点环（强制项，与主题无关）
+## 3. 焦点环：不要写（本节曾是「强制项」，2026-11-23 撤销）
 
-**这是无障碍问题，不是风格问题。不装任何主题的插件也该做。**
+> **变更说明**：本节早期版本要求每个插件都补 `html :focus-visible{… !important}`。
+> 该要求已撤销，`char-recog 0.8.4` 与 `cv_lyric_context 2.23.0` 已把各自的焦点规则删除。
+> 下面保留的是**事实与层叠原理**（这些仍然成立且值得知道），不再是行动要求。
 
-### 3.1 宿主把焦点框关掉了
+### 3.1 事实：宿主把焦点框关掉了
 
 `plugin-page-theme.ts:136` 往**每个** iframe 里写死：
 
@@ -282,52 +318,38 @@ html[data-ef-page='on'] .maibot-button {
   --tw-ring-offset-shadow:0 0 #0000!important;--tw-inset-ring-shadow:0 0 #0000!important}
 ```
 
-而且这段是 SDK 收到 context 后 **append 到 body 末尾**的
+这段是 SDK 收到 context 后 **append 到 body 末尾**的
 （`lib/plugin-custom-page.ts:79` / `:164`），**在你 `<head>` 里的 `<style>` 之后**。
 
-⇒ 键盘用户在你的页面上 Tab，**完全没有焦点提示**。主题对此无能为力（沙箱隔离）。
+⇒ 自定义页里键盘 Tab **没有焦点提示**。这是宿主的既定行为，主题插件在沙箱外，管不到。
 
-### 3.2 必须 `!important` + 提高特异性，两者缺一不可
+### 3.2 为什么「随手写一条焦点规则」一定是死代码
 
 CSS 层叠顺序是：**先比 `!important` 级别，再比特异性，最后才比书写顺序。**
 
-- **不带 `!important` ⇒ 必输**，无论你的特异性多高。宿主那条带 `!important`，
-  级别上直接压过所有普通声明。（第 6 节两个真实插件都栽在这里。）
-- **带了 `!important` 但特异性不高于宿主 ⇒ 也输**，因为同级别时后写的宿主胜。
-
-所以要**两个都做**。
-
-实测特异性（宿主那条是 `(0,1,0)`）：
+宿主那条带 `!important`，所以**任何不带 `!important` 的插件声明必输**，特异性再高也没用：
 
 | 写法 | 特异性 | 结果 |
 |---|---|---|
-| `a:focus-visible{outline:…}`（无 important） | (0,1,1) | ❌ **级别就输了**，特异性再高也没用 |
+| `a:focus-visible{outline:…}`（无 important） | (0,1,1) | ❌ **级别就输了**，特异性高于宿主也没用 |
+| `.cvl-input:focus-visible{outline:…}`（无 important） | (0,2,0) | ❌ 同上 |
 | `:focus-visible{outline:… !important}` | (0,1,0) | ❌ 同级别同特异性，后写的宿主胜 |
-| `html :focus-visible{… !important}` | (0,1,1) | ✅ |
-| `button:focus-visible{… !important}` | (0,1,1) | ✅ |
-| `html button:focus-visible{… !important}` | (0,1,2) | ✅ |
+| `html :focus-visible{… !important}` | (0,1,1) | ⚠️ 技术上能赢，但**本契约不建议写** |
 
-**加一个 `html` 前缀就够了**：
+两个真实插件都栽在第一行：规则写了、看着挺像样、**从来没渲染过**。
+`char-recog 0.8.4` / `cv_lyric_context 2.23.0` 的处理是**删掉**，而不是补 `!important`——
+删掉屏幕零变化，只是不再让源文件承诺一个交付不了的东西。
 
-```css
-html :focus-visible {
-  outline: 2px solid var(--maibot-primary) !important;
-  outline-offset: 2px;
-}
-html input:focus-visible,
-html select:focus-visible,
-html textarea:focus-visible { outline-offset: -1px; }
-```
+### 3.3 现在的建议
 
-### 3.3 覆盖范围要按能力，不要按类名
-
-别只给 `.maibot-button` 补——你页面里的裸 `<button>`、`<a>`、
-`[role=switch]`、`[role=checkbox]`、`[tabindex]` 全都需要。
-用上面那条 `html :focus-visible` 兜底最省事。
-
-> 这条教训来自 endfield-theme 0.4.4：主题本体一开始只给 `.dashboard-button` 补焦点环，
-> 结果宿主 **205 处裸 `<button>` 一个都没带那个类**，全漏。
-> **接管了「关焦点框」这件事，就必须按能力补齐，不能按类名补。**
+- **不要**在插件页里写 `outline` 焦点规则。写了要么无效（死代码），要么是在跟宿主
+  的全局设定对抗，属于超出「主题适配」范围的行为变更，应单独立项讨论。
+- **键盘可用性不要依赖焦点环**。如果你的页面有键盘工作流，让「当前项」由
+  **你自己的状态**驱动一个可见标记。参考 `char-recog`：待确认队列的当前组由 JS 变量
+  `captureFocus` → `.capture-thumb.active` 的边框变色表达，与 CSS 焦点无关，
+  所以删掉焦点规则后工作流照常可用。
+- 真要在整个 dashboard 层面解决焦点可见性，那是**宿主的事**（给 MaiBot 提 PR），
+  不是每个插件各写一遍 `!important` 去覆盖。
 
 ---
 
@@ -349,23 +371,29 @@ html textarea:focus-visible { outline-offset: -1px; }
 
 ## 5. 自检清单
 
-交付前逐条过。**A 层与焦点环是必做，B 层可选。**
+交付前逐条过。**1.3 起的令牌纪律必做；1.1/1.2 组件类看路线；B 层可选；焦点环不写。**
 
-### A 层（必做）
+### 底色与文字色（必做，两条路线都要）
 
-- [ ] `<body class="maibot-page">`
-- [ ] 控件用 `.maibot-button` / `.maibot-card` / `.maibot-input` / `.maibot-select` / `.maibot-badge` / `.maibot-table`
+- [ ] 页面底色与文字色来自令牌：用 `<body class="maibot-page">`（路线一），
+      **或**自己在根容器写 `background/color: var(--maibot-*, 回退值)`（路线二）
 - [ ] 所有颜色走 `var(--maibot-*, 回退值)`，没有写死的主色
-- [ ] **没有 `calc(var(--maibot-radius) - Npx)`**（会算出负值被丢弃）
+
+### 组件类（路线一才做；路线二必须**不做**）
+
+- [ ] 路线一：控件用 `.maibot-button` / `.maibot-card` / `.maibot-input` / `.maibot-select` / `.maibot-badge` / `.maibot-table`
+- [ ] 路线二：**零个 `maibot-*` 组件类**（加了会改掉未装主题时的 padding / 字体）
+
+### 令牌纪律（必做，两条路线都要）
+- [ ] **没有裸的 `calc(var(--maibot-radius) - Npx)`**，要减就 `max(0px, calc(...))`
 - [ ] 装饰性圆角（`999px` / 写死 px）已走令牌或在 B 层压平；真圆点可保留 `50%`
 - [ ] 深色用 `html.dark`，不读 `prefers-color-scheme`
 - [ ] 没有 `<link href>` 引外部 CSS、没有 `fetch()`、没有外链图片 / 字体（CSP 会拦）
 
-### 焦点环（必做）
+### 焦点环（2026-11-23 起：不写）
 
-- [ ] 有 `html :focus-visible { outline: … !important }`（特异性压过宿主）
-- [ ] 覆盖裸 `button` / `a` / `input` / `select` / `[role=*]` / `[tabindex]`，不只覆盖组件类
-- [ ] 键盘 Tab 走一遍页面，每个可聚焦控件都有可见焦点框
+- [ ] **没有**任何 `outline` 焦点规则（宿主全局关闭，写了是死代码，见第 3 节）
+- [ ] 若有键盘工作流，「当前项」由自己的状态驱动可见标记，不依赖 CSS 焦点
 
 ### B 层（可选）
 
@@ -382,79 +410,82 @@ html textarea:focus-visible { outline-offset: -1px; }
 
 ---
 
-## 6. 对照样例：两个真实插件
+## 6. 对照样例：两个真实插件（已按本契约改造）
 
-以下均为**只读分析，未改动任何代码**。分析时版本：
-`char-recog` 0.8.3、`cv_lyric_context` 2.22.0。
+初次分析时是只读的（`char-recog` 0.8.3 / `cv_lyric_context` 2.22.0）。
+**2026-11-23 已落地改造**：`char-recog` **0.8.4**、`cv_lyric_context` **2.23.0**。
+下表「改造前 → 改造后」两列都保留，方便看出每一步做了什么。
 
-### 6.1 char-recog（`webui/images.html`，1040 行）— A 层基本达标
+### 6.1 char-recog — A 层本来就达标，只删了死代码
 
-| 项 | 状态 | 证据 |
+| 项 | 改造前（0.8.3） | 现在（0.8.4） |
 |---|---|---|
-| `maibot-page` | ✅ | `<body class="maibot-page">` |
-| 宿主组件类 | ✅ **8 个** | `maibot-button` / `card` / `input` / `select` / `badge` / `table` / `inset` / `page` |
-| 令牌消费 | ✅ **12 种** | `:root` 里映射成 `--bg` / `--surface` / `--ink` 等自有别名 |
-| 圆角走令牌 | ✅ | 10 处 `var(--maibot-radius)`，**无负值 calc** |
-| 硬编码色 | ⚠️ 3 个 | `#ffffff` / `#24292f` / `#0b57d0`，都在 `#character-select option` —— 原生下拉弹层兜底，**有正当理由**（原生弹层不受 CSS 变量控制） |
-| 焦点环 | ❌ **失效** | 只有 `a:focus-visible, input[type=checkbox]:focus-visible{outline:2px solid var(--accent)}`，**无 `!important`** |
-| B 层切角 | ❌ 无 | 未做（可选，不算缺陷） |
+| `maibot-page` | ✅ `<body class="maibot-page">` | ✅ 不变 |
+| 宿主组件类 | ✅ **8 个**（button/card/input/select/badge/table/inset/page） | ✅ 不变 |
+| 令牌消费 | ✅ **12 种**，`:root` 映射成 `--bg`/`--surface`/`--ink` 等别名 | ✅ 不变 |
+| 圆角走令牌 | ⚠️ 10 处走令牌，但 `.capture-thumb img` 有 **1 处负值 calc**（早期文档误记为「无」） | ⚠️ 仍在（主题下取初始值 0，属隐患非现症，未列入该轮范围） |
+| 硬编码色 | ⚠️ 3 个，都在 `#character-select option` —— 原生下拉弹层兜底，**有正当理由** | ⚠️ 不变 |
+| 焦点环 | ❌ 一条**永不生效**的规则（无 `!important`） | ✅ **已删**，7 个页面全清 |
+| B 层切角 | ❌ 无 | ❌ 无（可选，不算缺陷） |
 
-**结论**：A 层做得相当好，**配色与直角已经自动跟随主题**。
-实质缺口是焦点环——而且不只是覆盖面问题，**现有那条规则本身是失效的**。
+**为什么只删不补**：那条 `a:focus-visible,input[type=checkbox]:focus-visible{outline:2px solid var(--accent)}`
+没有 `!important`，在层叠的**级别**上就输给宿主，特异性 (0,1,1) > (0,1,0) 也救不回来
+⇒ 从来没渲染过。删掉屏幕零变化。
 
-**已确证失效**（不是猜测）：它写的 `outline:2px solid var(--accent)` **没有 `!important`**。
-CSS 层叠里 **`!important` 级别优先于特异性**——宿主那条带 `!important`，
-所以无论插件选择器特异性多高（`a:focus-visible` 是 (0,1,1)，已高于宿主的 (0,1,0)），
-**都会输**。特异性只在同 `!important` 级别内才比较。
-
-**最小修法**（一行）：
-```css
-html :focus-visible { outline: 2px solid var(--accent) !important; outline-offset: 2px; }
-```
-`!important` 是关键，`html` 前缀是双保险（同级别时特异性 (0,1,1) > (0,1,0)）。
+**键盘工作流为什么不受影响**（已逐条核实）：当前组标记来自 JS 变量 `captureFocus`
+→ `.capture-thumb.active` 的边框变色，**不是** CSS 焦点；全文无 `.focus()` 调用；
+`1`/`2`/空格/`u` 快捷键不移动焦点。
 
 **⚠ 改哪个文件**：`webui/images.html` 等 6 个页面是 **`webui/build.py` 生成的**
 （文件头写着 `Generated by webui/build.py; edit webui/index.html`）。
-要改**源文件 `webui/index.html`**，然后跑
-`uv run --no-sync python webui/build.py` 重新生成，否则下次构建会被覆盖。
+必须改**源文件 `webui/index.html`**，再跑 `python webui/build.py` 重新生成，
+否则下次构建会把改动覆盖掉。
 
-### 6.2 cv_lyric_context（`webui/lyrics.html`）— A 层部分达标
+### 6.2 cv_lyric_context — 吃到颜色吃不到形状，已补形状跟随
 
-| 项 | 状态 | 证据 |
+| 项 | 改造前（2.22.0） | 现在（2.23.0） |
 |---|---|---|
-| 令牌消费 | ✅ **12 种，且全部带回退值** | `:7-18` 映射成 `--cvl-*`；`:39-44` 另有深色回退 |
-| `maibot-page` | ❌ **无** | 全文 0 处 |
-| 宿主组件类 | ❌ **一个都没有** | `maibot-button` / `card` / `badge` / … 全部 0 处，全用自有 `.cvl-*` |
-| 圆角走令牌 | ⚠️ 混合 | 部分 `var(--cvl-round)`，但有 **4 处 `calc(var(--cvl-round) - 2px/4px)`** ⇒ 主题下算出负值被丢弃 |
-| 写死圆角 | ❌ 多处 | `11px`（`:64`）、`999px`（`:76` 胶囊、`:154`/`:155` 进度条）、`50%`（`:80` 状态点，**这个合理**） |
-| 焦点环 | ❌ **失效** | `:140` `.cvl-input:focus-visible{outline:2px solid var(--cvl-accent)}`，**无 `!important`** ⇒ 同 6.1 已确证失效；且只覆盖输入框 |
-| reduced-motion | ❌ **无门控** | `:87` `animation: cvl-pulse 1.2s ease-in-out infinite` 裸循环 |
-| B 层切角 | ❌ 无 | 可选，不算缺陷 |
+| 令牌消费 | ✅ **12 种全带回退值**（`:7-18`，深色另有 `:39-44`） | ✅ 不变 |
+| `maibot-page` | ❌ 无 | ❌ **仍不加**（见下方说明） |
+| 宿主组件类 | ❌ 0 个，全用自有 `.cvl-*` | ❌ **仍不加**（见下方说明） |
+| 派生圆角负值 | ❌ **7 处** `calc(var(--cvl-round) - 2px/4px)`（早期文档误记为 4 处） | ✅ 7 处全部 `max(0px, calc(...))` |
+| 写死圆角 | ❌ logo `11px`、徽章与进度条 `999px` | ✅ 门控内压成直角；`50%` 状态点保留 |
+| 焦点环 | ❌ 一条永不生效的规则 | ✅ **已删** |
+| reduced-motion | ❌ 裸循环 `cvl-pulse 1.2s infinite` | ✅ 包进 `no-preference`，静止时颜色仍表达「正在同步」 |
+| 选中态 | `box-shadow: 0 0 0 1px` 外发光 | ✅ 门控内换成 1px 细线 |
+| B 层切角 | ❌ 无 | ❌ 无（本轮未做切角，只压形状） |
 
-**结论**：它**吃到了配色**（令牌桥接做得很规范，回退值齐全），
-但**吃不到形状**——没用组件类、没用 `maibot-page`，且有一批写死圆角与负值 calc。
-所以在主题下呈现的是「终末地的颜色 + 圆角胶囊的形状」。
+**★ 为什么不加 `maibot-page` 和组件类（重要，与直觉相反）**：
+宿主组件类是**无条件注入**的（`plugin-page-theme.ts:120-130`，跟风格、跟装没装主题**都无关**），
+而且 `:133`/`:137` 写死了 `.maibot-button{padding:8px 16px}` / `.maibot-card{padding:20px}`。
+⇒ **加类会连「没装主题时」的内边距和字体一起改掉**。本轮的硬约束是「没装主题时保持原样」，
+所以走的是**只用令牌 + 门控 CSS**的路线，一个组件类都没加。
 
-**按优先级排的修法**：
-1. `<body>` 加 `class="maibot-page"`（一行，解决底色 / 字体基线）
-2. 4 处负值 calc 改 `max(0px, calc(...))` 或直接用令牌（**这是真 bug，与主题无关**）
-3. `:87` 循环动画包进 `prefers-reduced-motion: no-preference`（**无障碍真 bug**）
-4. 焦点环换成 `html :focus-visible { … !important }`
-5. 胶囊 / 写死圆角走令牌（形状跟随）
-6. 控件逐步改用宿主组件类（工作量最大，可分批）
+这也是对第 1.1/1.2 节的重要补充：**那两节适用于「愿意全面接受宿主组件观感」的插件**；
+如果你的插件已有一套自洽的视觉、只想在方角主题下跟着变方，**不要加组件类**，
+改用第 2 节的探测门控，只覆盖形状属性。
+
+**探测判据实测**：主题 4 强调色 × 3 纸色 × 2 模式 = **24 组漏判 0**；
+官方 modern / millennium / future-retro **误判 0**（复古风字体含 Bahnschrift，
+是最易误判的一组，靠「圆角非 0」被正确排除）。
 
 ### 6.3 两者对比的启示
 
 | | char-recog | cv_lyric_context |
 |---|---|---|
 | 令牌桥接 | ✅ | ✅（回退值更规范） |
-| 组件类 | ✅ 8 个 | ❌ 0 个 |
-| 形状跟随主题 | ✅ | ❌ |
-| 负值 calc 隐患 | 无 | **4 处** |
-| reduced-motion | ✅ 有门控 | ❌ 无 |
+| 组件类 | ✅ 8 个（全面接受宿主观感） | ❌ 0 个（**有意为之**，保护未装主题时的外观） |
+| 形状跟随主题 | ✅ 自动 | ✅ 靠门控层补 |
+| 负值 calc | 1 处（隐患，未修） | 7 处 → **已全钳** |
+| reduced-motion | ✅ 一直有 | ❌ → ✅ **已补** |
 
-**同一个作者的两个插件，A 层达标度差这么远** ⇒ 说明这不是「能力问题」而是「有没有清单」。
-这正是本文档存在的理由：**把隐式约定写成显式清单**。
+两条可复用的结论：
+
+1. **同一个作者的两个插件，A 层达标度差这么远** ⇒ 不是能力问题，是「有没有清单」。
+   这正是本文档存在的理由：把隐式约定写成显式清单。
+2. **「适配主题」有两条路，选哪条取决于你要不要保住未装主题时的样子**：
+   全面接受宿主组件类（省事，但外观交给宿主），或只用令牌 + 门控（工作量稍大，
+   但能精确控制「装主题才变」）。**不存在两全的第三条路**——加类必然影响未装主题时。
 
 ---
 
@@ -463,13 +494,18 @@ html :focus-visible { outline: 2px solid var(--accent) !important; outline-offse
 | 文件 | 用途 |
 |---|---|
 | `docs/plugin-page-adaptation.md` | 本文，契约 + 清单 + 对照 |
-| `docs/examples/example.html` | 最小可抄样例，三层结构齐全 |
+| `docs/examples/example.html` | 最小可抄样例（**路线一**：用宿主组件类） |
 | `docs/examples/endfield-page-adapter.js` | 能力探测完整版（含判据理由与实测结论） |
 | `docs/examples/endfield-page.css` | 可选 B 层片段，全部带门控 |
 
 **这些文件不参与主题运行时**，主题不会去读它们，也不会注入到你的插件里。
 它们是给开发者抄的。用法：把 `endfield-page.css` 与 `endfield-page-adapter.js`
 的内容**内联**进你自己的 `webui/*.html`（CSP 禁止外链）。
+
+**路线二的现成参考不在本目录**，直接读已落地的真实实现：
+`cv_lyric_context` 2.23.0 的 `webui/lyrics.html` —— 探测脚本在 `<script>` 开头，
+形状跟随层在 `<style>` 末尾（8 行，全部带 `html[data-ef-page='on']` 门控），
+零个宿主组件类。它的 `tests/test_webui_pages.py` 里还有 7 个可直接抄的守护用例。
 
 ---
 

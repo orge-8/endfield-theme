@@ -11,10 +11,14 @@
      外面再包一层 CSP + SDK。所以你写的 <html>/<head> 实际会被当作 body 内容，
      保留完整结构只是为了能单独打开预览。
 
-     三层结构：
+     本样例走「路线一」：全面接受宿主组件观感。
        A 层（必须）：消费 --maibot-* 令牌 + maibot-* 组件类 ⇒ 配色/直角自动跟随
-       焦点环（必须）：对抗宿主写死的 outline:none
        B 层（可选）：切角/眉标，靠 data-ef-page 门控
+     ⚠ 如果你的页面已有一套自洽视觉、要求「没装主题时外观不变」，
+       **不要抄组件类那部分**（宿主组件类无条件注入，会改掉未装主题时的 padding/字体）。
+       改走路线二：只用令牌 + 门控 CSS，实例见 cv_lyric_context 2.23.0 的 lyrics.html。
+     ⚠ 焦点环：不要写。宿主全局 outline:none!important，插件侧写了是死代码。
+       （2026-11-23 撤销了原「焦点环强制项」，详见契约文档第 3 节。）
      ============================================================ -->
 
 <style>
@@ -38,26 +42,16 @@ body { margin: 0; padding: 16px; font-size: 14px; line-height: 1.6; }
 .stat .label { color: var(--page-dim); font-size: 12px; }
 .hint { color: var(--page-dim); font-size: 12px; }
 
-/* ---------- 焦点环（强制项，与装不装主题无关） ---------- */
+/* ---------- 焦点环：这里**故意什么都不写** ---------- */
 /* 宿主往 iframe 里写死了：
      :focus,:focus-visible{outline:none!important;--tw-ring-shadow:0 0 #0000!important;...}
-   （plugin-page-theme.ts:136），而且这段是 SDK 收到 context 后 append 到
+   （plugin-page-theme.ts:136），且这段是 SDK 收到 context 后 append 到
    **body 末尾**的（plugin-custom-page.ts:79/164），在你的 <style> 之后。
 
-   同为 !important 时，层叠顺序让后写胜出 —— 所以光写 !important 不够，
-   必须**提高特异性**。宿主那条是 (0,1,0)，加一个 html 前缀即可压过：
-     html :focus-visible → (0,1,1) ✅
-   实测：裸 :focus-visible (0,1,0) 压不过，加 html 或 button 都能压过。 */
-html :focus-visible {
-  outline: 2px solid var(--page-accent) !important;
-  outline-offset: 2px;
-}
-/* 输入框内嵌焦点环，避免被容器裁掉 */
-html input:focus-visible,
-html select:focus-visible,
-html textarea:focus-visible {
-  outline-offset: -1px;
-}
+   层叠先比 !important 级别再比特异性 ⇒ 不带 !important 的插件规则必输，
+   写了就是死代码。本契约不要求也不建议去覆盖它。
+   键盘工作流请让自己的状态驱动一个可见标记（如 .item.active 的边框变色），
+   不要依赖 CSS 焦点。详见契约文档第 3 节。 */
 
 /* ---------- B 层：可选的终末地风味（门控在 data-ef-page） ---------- */
 /* 没装主题时 adapter.js 不挂这个属性 ⇒ 下面整体不生效 ⇒ 保持官方观感。 */
