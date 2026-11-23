@@ -193,9 +193,19 @@ border-radius: var(--maibot-radius);          /* 直接用 */
 border-radius: max(0px, calc(var(--maibot-radius) - 4px));
 ```
 
-实际数量（2026-11-23 复核）：`cv_lyric_context` 曾有 **7 处**（不是早期文档写的 4 处），
-`char-recog` 有 **1 处**（`.capture-thumb img`）。cv_lyric 的 7 处已在 2.23.0 全部钳住；
-char-recog 那 1 处仍在，因主题下属上述「隐患非现症」情形，未列入该轮改动范围。
+实际数量（2026-11-23 复核）：`cv_lyric_context` **7 处**（不是早期文档写的 4 处）、
+`self-identity` **10 处**、`identity-guard` **5 处**、`char-recog` **1 处**
+（`.capture-thumb img`）。**四处现已全部钳住**：cv_lyric 2.23.0、self-identity 1.12.0、
+identity-guard 1.3.0、char-recog 0.9.0。
+
+⚠ **一个必须纠正的常见误解**：不要以为「裸 `var(--maibot-radius)` 没写回退值 ⇒
+没装主题时变量不存在 ⇒ 圆角一直是 0」。**宿主令牌是无条件注入的**
+（`lib/plugin-page-theme.ts:95-118`，从 dashboard 自己的卡片/按钮上 `getComputedStyle`
+实测采样，与装没装主题无关）。官方三风格卡片圆角实测为
+**8px（modern）/ 0px（millennium）/ 4px（future-retro）**
+（`lib/theme/tokens.ts:254 / 558 / 431`，Card 用 `rounded-lg`）。
+所以裸引用在没装主题时拿到的是正常的 8px，**不是现症**。
+回退值仍建议写（SDK 送 context 前有一小段空窗），但它不是「圆角消失」的原因。
 
 ### 1.5 ⚠ 装饰性圆角要自己收
 
@@ -373,6 +383,54 @@ CSS 层叠顺序是：**先比 `!important` 级别，再比特异性，最后才
 
 交付前逐条过。**1.3 起的令牌纪律必做；1.1/1.2 组件类看路线；B 层可选；焦点环不写。**
 
+### 5.0 先跑脚本，再人工过清单
+
+配套自检脚本：[`check_page_adaptation.py`](./check_page_adaptation.py)（零依赖，只用标准库）。
+
+```bash
+python docs/check_page_adaptation.py <你的插件目录>
+python docs/check_page_adaptation.py <你的插件目录> --json     # 机器可读
+python docs/check_page_adaptation.py <你的插件目录> --strict   # 隐患也算失败
+python docs/check_page_adaptation.py --selftest               # 脚本自测（22 项）
+```
+
+改了脚本本身**必须先跑 `--selftest`**：它用合成样例覆盖 22 条判据，
+不依赖任何外部插件，任何人都能复验。每条都对应一个真实踩过的坑。
+
+退出码：`0` 无现症 / `1` 有现症（`--strict` 下隐患也算）/ `2` 用法或目录错误。
+只有配置页、没有自定义页的插件会直接告诉你「无需适配」——宿主渲染，主题已自动接管。
+
+**三档分级，别把隐患当现症改**：
+
+| 级别 | 含义 | 例子 |
+|---|---|---|
+| **现症** | 现在就在屏幕上出错 | 白字配荧光强调色、死焦点环、探测按品牌判、跨页副本漂移 |
+| **隐患** | 现在恰好正常，换个风格/令牌就崩 | 负圆角（方角下碰巧仍是方角）、写死装饰圆角、无限动画无门控 |
+| **提示** | 需要你自己判断，不是缺陷 | `50%` 是不是真圆点、宿主控件类要不要留、真生效的焦点环 |
+
+**脚本查什么**：负圆角钳位（区分现症/隐患）、白字对比度（追溯变量定义链）、
+写死装饰圆角、门控缺失、死焦点环 vs 真焦点环、宿主控件类（只扫 `class` 属性内）、
+探测完整性与跨页一致性、生成源与产物漂移、CSP 违规、深浅判据、动效门控、body 片段。
+
+**⚠ 脚本证明不了交互行为**。它只做静态扫描。涉及自定义控件（下拉、弹窗、拖拽）时
+**必须另做真实浏览器验收**：真实 `iframe` + 真实沙箱 + 真实 CSP + 最小宿主桥桩。
+实例：char-recog 0.9.0 的静态用例全绿，真实浏览器验收却抓出 **3 个真 bug** ——
+`value` / `hidden` / `disabled` 都是 IDL 属性，赋值**不改 attribute**，
+`MutationObserver` 抓不到，导致面板文案不更新 / 该隐藏的没隐藏 / 该禁用的还能点。
+
+**脚本自身经过双向回测**（22/22）：拿四个真实插件的**改前**版本验证能抓出已知缺陷
+（cv_lyric 7 处负圆角、self-identity 10 处、identity-guard 5 处、char-recog 1 处、
+char-recog-v2 白字 bug），再拿**改后**版本验证清零；同时钉住三条**不许误报**的底线：
+
+1. `--si-accent: #1baf7a` 是写死绿，**不跟随主题** ⇒ 不许报成「现症·装主题才坏」。
+   （只看变量名含 `accent` 就判违规是错的，必须追溯定义链。）
+   它配白字实测 **2.82**，确实低于 WCAG AA 对大字号/图形的 3.0 ——
+   但那是**既有配色问题**，脚本只给「提示」，不谎报成适配缺陷；
+2. 文字色取 `var(--maibot-primary-foreground)` 是**正确写法**（宿主配套前景色，
+   装主题后自动变墨字）⇒ 不许报，更不能展开成回退值 `#ffffff` 去算对比度；
+3. `var(--maibot-muted)` 是**颜色令牌**，`.maibot-muted` 是**类** ⇒ 同名不同物，
+   类名检查只扫 `class` 属性内。
+
 ### 底色与文字色（必做，两条路线都要）
 
 - [ ] 页面底色与文字色来自令牌：用 `<body class="maibot-page">`（路线一），
@@ -410,23 +468,53 @@ CSS 层叠顺序是：**先比 `!important` 级别，再比特异性，最后才
 
 ---
 
-## 6. 对照样例：两个真实插件（已按本契约改造）
+## 6. 对照样例：四个真实插件（已按本契约改造）
 
 初次分析时是只读的（`char-recog` 0.8.3 / `cv_lyric_context` 2.22.0）。
-**2026-11-23 已落地改造**：`char-recog` **0.8.4**、`cv_lyric_context` **2.23.0**。
+**2026-11-23 已落地改造**：`char-recog` **0.9.0**、`cv_lyric_context` **2.23.0**、
+`self-identity` **1.12.0**、`identity-guard` **1.3.0**。
 下表「改造前 → 改造后」两列都保留，方便看出每一步做了什么。
 
-### 6.1 char-recog — A 层本来就达标，只删了死代码
+**四个插件正好覆盖两种路线与三种焦点环情形**，挑最接近你的那个抄：
 
-| 项 | 改造前（0.8.3） | 现在（0.8.4） |
+| 插件 | 路线 | 焦点环处理 | 参考价值 |
+|---|---|---|---|
+| `char-recog` 0.9.0 | 一（8 个宿主组件类） | 删死代码 | **自定义控件替换**（8 个下拉），IDL 属性同步 |
+| `cv_lyric_context` 2.23.0 | 二（零组件类） | 删死代码 | 门控形状 + 动效门控的标准写法 |
+| `self-identity` 1.12.0 | 二（保留既有 `maibot-page`） | 本来就没有 | **多页副本一致性**（三页内联探测） |
+| `identity-guard` 1.3.0 | 二（零控件类） | **保住真生效的那条** | 真圆点与焦点框圆角要区别对待 |
+
+### 6.1 char-recog — A 层本来就达标，0.9.0 换了自定义下拉
+
+| 项 | 改造前（0.8.3） | 现在（0.9.0） |
 |---|---|---|
 | `maibot-page` | ✅ `<body class="maibot-page">` | ✅ 不变 |
 | 宿主组件类 | ✅ **8 个**（button/card/input/select/badge/table/inset/page） | ✅ 不变 |
 | 令牌消费 | ✅ **12 种**，`:root` 映射成 `--bg`/`--surface`/`--ink` 等别名 | ✅ 不变 |
-| 圆角走令牌 | ⚠️ 10 处走令牌，但 `.capture-thumb img` 有 **1 处负值 calc**（早期文档误记为「无」） | ⚠️ 仍在（主题下取初始值 0，属隐患非现症，未列入该轮范围） |
-| 硬编码色 | ⚠️ 3 个，都在 `#character-select option` —— 原生下拉弹层兜底，**有正当理由** | ⚠️ 不变 |
-| 焦点环 | ❌ 一条**永不生效**的规则（无 `!important`） | ✅ **已删**，7 个页面全清 |
+| 圆角走令牌 | ⚠️ 10 处走令牌，但 `.capture-thumb img` 有 **1 处负值 calc**（早期文档误记为「无」） | ✅ 该处已 `max(0px, calc(...))`；其余 10 处裸引用**保持原样**（宿主无条件注入，官方 8px 下正常） |
+| 硬编码色 | ⚠️ 3 个，都在 `#character-select option` —— 原生下拉弹层兜底 | ✅ **已删**，改自定义面板，配色全取令牌 |
+| 焦点环 | ❌ 一条**永不生效**的规则（无 `!important`） | ✅ **已删**（0.8.4），7 个页面全清 |
+| 下拉 | 8 个原生 `<select>`，弹层配色写死 | ⚠️ **自定义面板**，跟随令牌与方角；**键盘选择能力移除**（明示取舍） |
 | B 层切角 | ❌ 无 | ❌ 无（可选，不算缺陷） |
+
+**★ 自定义控件怎么换才不炸（0.9.0 的做法，值得抄）**：
+8 个下拉在业务 JS 里有 20+ 处 `.value` / `.innerHTML` / `.options` / `.onchange` / `.hidden`
+读写。**不要把原生 `<select>` 换成 `div`** —— 那要重写全部逻辑。
+正确做法是**保留原生元素当数据载体**（视觉隐藏 + `pointer-events:none` + `tabIndex=-1`），
+外面套一层自定义面板驱动它：
+
+- 用户点面板 → 写回 `select.value` → 派发**冒泡** `change` → 既有 `.onchange` 原样触发；
+- 业务重写 `innerHTML` → `MutationObserver` 感知 → 面板选项重建；
+- 业务写 `.value` / `.hidden` / `.disabled` → **必须覆盖实例访问器**。
+
+**⚠ 最后一条是最容易漏的坑**：这三个都是 **IDL 属性**，赋值**不改 attribute**，
+`MutationObserver` 抓不到。char-recog 的静态用例全绿，真实浏览器验收才抓出这 3 个 bug
+（面板文案不更新 / 该隐藏的没隐藏 / 该禁用的还能点）。修法是
+`Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, key)` 取原型描述符，
+在实例上 `defineProperty` 转发后再同步面板（`hidden` 挂在 `HTMLElement.prototype` 上）。
+
+**代价要写进 CHANGELOG**：原生 select 移出 Tab 序列后**键盘选择能力消失**。
+这是明示裁决的取舍，不是遗漏；用一条静态断言把它钉住，将来要恢复必须显式改那条用例。
 
 **为什么只删不补**：那条 `a:focus-visible,input[type=checkbox]:focus-visible{outline:2px solid var(--accent)}`
 没有 `!important`，在层叠的**级别**上就输给宿主，特异性 (0,1,1) > (0,1,0) 也救不回来
@@ -469,23 +557,68 @@ CSS 层叠顺序是：**先比 `!important` 级别，再比特异性，最后才
 官方 modern / millennium / future-retro **误判 0**（复古风字体含 Bahnschrift，
 是最易误判的一组，靠「圆角非 0」被正确排除）。
 
-### 6.3 两者对比的启示
+### 6.3 self-identity 1.12.0 — 多页副本一致性是重点
 
-| | char-recog | cv_lyric_context |
-|---|---|---|
-| 令牌桥接 | ✅ | ✅（回退值更规范） |
-| 组件类 | ✅ 8 个（全面接受宿主观感） | ❌ 0 个（**有意为之**，保护未装主题时的外观） |
-| 形状跟随主题 | ✅ 自动 | ✅ 靠门控层补 |
-| 负值 calc | 1 处（隐患，未修） | 7 处 → **已全钳** |
-| reduced-motion | ✅ 一直有 | ❌ → ✅ **已补** |
+三页（`lorebook` / `gallery` / `diagnostics`）共 **10 处**负 calc 全钳，
+三页插入**逐字节一致**的门控 CSS 与探测 JS。既有 `maibot-page` 保留不动。
 
-两条可复用的结论：
+**★ 多页插件最大的坑是「漏改一页」**：CSP 禁外链 ⇒ 探测代码只能每页内联一份。
+漏改那页**不报错**，只是静默变回圆角，极难发现。
+解法：加一条断言抽出各页探测段做**逐字节比对**，把「副本同步」变成机器保证。
+若有 build 脚本，还要比对**生成源与产物**（改源没重跑 build 同样是静默失效）。
 
-1. **同一个作者的两个插件，A 层达标度差这么远** ⇒ 不是能力问题，是「有没有清单」。
-   这正是本文档存在的理由：把隐式约定写成显式清单。
+**⚠ 一个真实的误判教训**：审计时看到 `.si-brand-icon{background:var(--si-accent);color:#fff}`
+就判「装主题后看不见字」是**错的**。`--si-accent` 是写死的 `#1baf7a` / `#199e70`，
+**不跟随主题**，白字对比度 2.82 / 3.41 够用。
+**变量名里有 `accent` 不代表它跟随主题，必须追溯定义链。**
+反过来，同页的 `.si-btn-primary` 用 `var(--si-primary)` → `var(--maibot-primary)` 才真跟随，
+但它的文字色取 `var(--maibot-primary-foreground)`（宿主配套前景色），
+装主题后自动变墨字 ⇒ **也是正确写法，不该报**。
+
+### 6.4 identity-guard 1.3.0 — 焦点环的唯一正例
+
+两页共 **5 处**负 calc 全钳。**刻意不删那条焦点环**：
+
+```css
+/* 宿主强制 :focus{outline:none!important}，焦点态必须自绘 */
+.ig-root :focus-visible {
+  outline: 2px solid var(--ig-primary) !important;
+  outline-offset: 2px;
+  border-radius: 6px;   /* 焦点框自身形状，不是装饰圆角，一并保留 */
+}
+```
+
+它**带 `!important` 且提高了特异性 ⇒ 真正在渲染**，是既有的键盘可用性能力。
+删它是真功能退化。这与 char-recog / cv_lyric 那两条**不带 `!important`** 的死代码
+性质完全不同 —— **先判断它到底有没有生效，再决定删不删**。
+
+**刻意不压平语义圆点**：`.ig-badge-dot` / `.ig-event-dot` 的 `50%` 是「这是个点」的语义。
+断言要钉**两个方向**：① 门控层里不许出现圆点选择器；
+② **原始规则本身**必须仍是 `50%`（否则有人绕过门控直接改死值，方向 ① 抓不到）。
+
+### 6.5 四者对比的启示
+
+| | char-recog | cv_lyric | self-identity | identity-guard |
+|---|---|---|---|---|
+| 令牌桥接 | ✅ | ✅（回退值最规范） | ✅ | ✅ |
+| 组件类 | ✅ 8 个（路线一） | ❌ 0 个 | 仅 `maibot-page` | ❌ 0 个控件类 |
+| 形状跟随 | ✅ 自动 + 面板门控 | ✅ 门控层 | ✅ 门控层 | ✅ 门控层 |
+| 负值 calc | 1 → **已钳** | 7 → **已钳** | 10 → **已钳** | 5 → **已钳** |
+| 焦点环 | 死代码 → 删 | 死代码 → 删 | 本来没有 | **真生效 → 保住** |
+| reduced-motion | ✅ 一直有 | ❌ → ✅ 已补 | — | — |
+
+三条可复用的结论：
+
+1. **同一个作者的四个插件，A 层达标度差这么远** ⇒ 不是能力问题，是「有没有清单」。
+   这正是本文档与自检脚本存在的理由：把隐式约定写成显式清单。
 2. **「适配主题」有两条路，选哪条取决于你要不要保住未装主题时的样子**：
    全面接受宿主组件类（省事，但外观交给宿主），或只用令牌 + 门控（工作量稍大，
    但能精确控制「装主题才变」）。**不存在两全的第三条路**——加类必然影响未装主题时。
+3. **「未装主题外观不变」可以机器证明，别靠肉眼**：剥掉门控规则后抽
+   `(选择器, 属性, 值)` 三元组做集合差，要求**净新增 0 / 净删除 0**，
+   差异只允许 `max(0px, ...)` 包装（回退值下计算等价）。
+   四个插件都是这么验的：cv_lyric 净新增 0、self-identity 三页净变化 0、
+   identity-guard 433/478 条零净变化、char-recog 非下拉部分零净变化。
 
 ---
 
@@ -494,6 +627,7 @@ CSS 层叠顺序是：**先比 `!important` 级别，再比特异性，最后才
 | 文件 | 用途 |
 |---|---|
 | `docs/plugin-page-adaptation.md` | 本文，契约 + 清单 + 对照 |
+| `docs/check_page_adaptation.py` | **自检脚本**（零依赖）：扫你的插件目录，三档分级报告 |
 | `docs/examples/example.html` | 最小可抄样例（**路线一**：用宿主组件类） |
 | `docs/examples/endfield-page-adapter.js` | 能力探测完整版（含判据理由与实测结论） |
 | `docs/examples/endfield-page.css` | 可选 B 层片段，全部带门控 |
@@ -506,6 +640,12 @@ CSS 层叠顺序是：**先比 `!important` 级别，再比特异性，最后才
 `cv_lyric_context` 2.23.0 的 `webui/lyrics.html` —— 探测脚本在 `<script>` 开头，
 形状跟随层在 `<style>` 末尾（8 行，全部带 `html[data-ef-page='on']` 门控），
 零个宿主组件类。它的 `tests/test_webui_pages.py` 里还有 7 个可直接抄的守护用例。
+
+按需求挑参考：
+- **多页副本一致性** → `self-identity` 1.12.0 的 `tests/test_frontend_gate.py`（5 个用例）
+- **保住真生效的焦点环 / 语义圆点** → `identity-guard` 1.3.0 的 `tests/test_webui_pages.py`（7 个用例）
+- **自定义控件替换 + IDL 属性同步** → `char-recog` 0.9.0 的 `webui/index.html`
+  与 `tests/test_webui_contract.py`（10 个用例）
 
 ---
 
