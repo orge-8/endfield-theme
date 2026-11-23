@@ -58,6 +58,21 @@ def strip_comments(css: str) -> str:
     return re.sub(r"/\*.*?\*/", "", css, flags=re.S)
 
 
+def strip_all_comments(html: str) -> str:
+    """剥掉 HTML / CSS / JS 三种注释，供「代码里有没有用某写法」类检查使用。
+
+    ★ 必须先剥注释再扫，否则**文档性注释会被当成违规代码**。
+      实测误报：样例页注释里写了「不要读 prefers-color-scheme」和
+      「装主题时 context.dashboardStyle 仍是 modern」，
+      两条解释性文字都被判成现症。教人别踩坑的注释反而被报错，是最坏的一种误报。
+    """
+    out = re.sub(r"<!--.*?-->", "", html, flags=re.S)
+    out = re.sub(r"/\*.*?\*/", "", out, flags=re.S)
+    # JS 行注释：避开 http:// 这类冒号斜杠（前面要求不是 ':' 且不是字符串内简判）
+    out = re.sub(r"(?<![:\w])//[^\n]*", "", out)
+    return out
+
+
 def rules_of(css: str):
     """产出 (选择器, [(属性, 值), ...])。跨行、多声明、嵌套 @ 块都能处理。"""
     css = strip_comments(css)
@@ -303,9 +318,35 @@ def check_white_on_accent(page, css, findings):
             "想改就把底色改走令牌，或文字改深色"))
 
 
-def check_hardcoded_radius(page, css, findings):
-    """写死装饰圆角主题管不到；真圆点例外。"""
+def gated_selectors(css: str) -> set:
+    """收集**已在门控层里被压平**的选择器。
+
+    ★ 写死圆角只要门控层已经压平，就是**正确做法**，不该再报隐患。
+      实测误报：路线二样例的 .demo-badge / .demo-bar-track / .demo-bar-fill
+      写死 999px 但门控层已 border-radius:0，脚本仍报隐患 ⇒ 误导使用者去改
+      本来就对的代码。
+    """
+    out = set()
     for sel, decls in rules_of(css):
+        if GATE_ATTR not in sel:
+            continue
+        if not any(p == "border-radius" and v in ("0", "0px") for p, v in decls):
+            continue
+        # 去掉门控前缀，按逗号拆出每个被压平的选择器
+        body = re.sub(r"html\[" + GATE_ATTR + r"[^\]]*\]\s*", "", sel)
+        for part in body.split(","):
+            part = " ".join(part.split())
+            if part:
+                out.add(part)
+    return out
+
+
+def check_hardcoded_radius(page, css, findings):
+    """写死装饰圆角主题管不到；真圆点与已门控压平的例外。"""
+    gated = gated_selectors(css)
+    for sel, decls in rules_of(css):
+        if GATE_ATTR in sel:
+            continue                      # 门控层自身不检
         for prop, value in decls:
             if prop != "border-radius":
                 continue
@@ -313,15 +354,25 @@ def check_hardcoded_radius(page, css, findings):
                 continue
             if value in ("0", "0px", "none", "inherit", "initial", "unset"):
                 continue
+            # ★ 焦点框自身的圆角不是装饰圆角，不该压平也不该报
+            if "focus" in sel:
+                findings.append(Finding(
+                    "提示", "RADIUS-FOCUS", page,
+                    f"{sel} 的 border-radius {value} 是焦点框自身形状",
+                    "不是装饰圆角，形状适配时应保留，不要压平"))
+                continue
             if value == "50%":
                 findings.append(Finding(
                     "提示", "RADIUS-DOT", page,
                     f"{sel} 用 50% —— 若它是状态灯/进度点则合理，若是装饰块需门控压平",
                     "判断标准是「它是不是一个点」，不是「它圆不圆」"))
                 continue
+            # ★ 已被门控层压平 ⇒ 正确做法，不报
+            if any(sel == g or sel in g or g in sel for g in gated):
+                continue
             findings.append(Finding(
                 "隐患", "RADIUS-HARDCODED", page,
-                f"{sel} 的 border-radius 写死 {value}，主题管不到",
+                f"{sel} 的 border-radius 写死 {value}，主题管不到且门控层未压平",
                 "改走 var(--maibot-radius)，或在门控层里压平"))
 
 
@@ -399,8 +450,9 @@ def check_probe(page, html, findings):
             findings.append(Finding(
                 "现症", "PROBE-INCOMPLETE", page,
                 f"探测缺少要素 {key}（{why}）", ""))
-    # 只匹配真实取值表达式，注释里提到 dashboardStyle 不算违规
-    if re.search(r"(?:dataset|context)\s*(?:\.|\[\s*['\"])dashboardStyle", html):
+    # 只匹配真实取值表达式；先剥注释，避免解释性文字被判违规
+    code = strip_all_comments(html)
+    if re.search(r"(?:dataset|context)\s*(?:\.|\[\s*['\"])dashboardStyle", code):
         findings.append(Finding(
             "现症", "PROBE-BRAND", page,
             "探测读了 dashboardStyle 判品牌",
@@ -428,8 +480,9 @@ def check_csp(page, html, findings):
 
 
 def check_dark_mode(page, html, findings):
-    """深浅要读 html.dark，不要读系统偏好。"""
-    if "prefers-color-scheme" in html:
+    """深浅要读 html.dark，不要读系统偏好。先剥注释再扫。"""
+    code = strip_all_comments(html)
+    if "prefers-color-scheme" in code:
         findings.append(Finding(
             "现症", "DARK", page, "用了 prefers-color-scheme 判深浅",
             "用户在 dashboard 手动选的深浅可能与系统不一致；改用 html.dark"))
@@ -681,6 +734,38 @@ def selftest():
     # 11 真圆点只给提示，不算缺陷
     expect("50% 只给提示",
            collect(".dot{border-radius:50%}"), "RADIUS-DOT", True, "提示")
+    # 12 ★ 已被门控压平的写死圆角是正确做法，不该报隐患
+    expect("★ 门控已压平的写死圆角不报",
+           collect(".badge{border-radius:999px}\n"
+                   "html[data-ef-page='on'] .badge{border-radius:0}"),
+           "RADIUS-HARDCODED", False)
+    expect("门控未压平的写死圆角仍报",
+           collect(".badge{border-radius:999px}"),
+           "RADIUS-HARDCODED", True, "隐患")
+    # 13 ★ 焦点框自身圆角不是装饰圆角
+    expect("★ 焦点框圆角只给提示",
+           collect(".root :focus-visible{outline:2px solid red !important;"
+                   "border-radius:6px}"),
+           "RADIUS-FOCUS", True, "提示")
+    expect("★ 焦点框圆角不报装饰隐患",
+           collect(".root :focus-visible{border-radius:6px}"),
+           "RADIUS-HARDCODED", False)
+    # 14 ★ 解释性注释不得被判成违规代码（三种注释都要剥）
+    expect("★ HTML 注释里的 prefers-color-scheme 不报",
+           collect(html="<style>.a{color:red}</style>"
+                        "<!-- 不要读 prefers-color-scheme，要用 html.dark -->"),
+           "DARK", False)
+    expect("★ CSS 注释里的 prefers-color-scheme 不报",
+           collect("/* 别用 prefers-color-scheme */\n.a{color:red}"),
+           "DARK", False)
+    expect("★ JS 注释里的 dashboardStyle 不报",
+           collect(html="<style>html[data-ef-page='on'] .a{border-radius:0}</style>"
+                        "<script>// 装主题时 context.dashboardStyle 仍是 modern\n"
+                        "var a=1;</script>"),
+           "PROBE-BRAND", False)
+    expect("真用 prefers-color-scheme 仍报",
+           collect("@media (prefers-color-scheme: dark){.a{color:#fff}}"),
+           "DARK", True, "现症")
 
     bad = [c for c in cases if not c[1]]
     print(f"\n{len(cases)-len(bad)}/{len(cases)} 项通过")

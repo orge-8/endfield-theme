@@ -1,0 +1,263 @@
+<!--
+  route2-page.html — 路线二完整样例：**零宿主控件类，只用令牌 + 探测门控**。
+
+  ★ 这是自包含文件：不依赖任何插件仓库、不需要装 endfield-theme 也能看懂。
+    直接复制整个文件当你的 webui/xxx.html 起点，把 .demo-* 换成你自己的类名即可。
+
+  什么时候选路线二（而不是 example.html 的路线一）：
+    你的插件**已有一套自洽的视觉**，只想在方角主题下跟着变方，
+    并且要求「**没装主题时外观逐像素不变**」。
+
+  为什么不能加宿主控件类（关键，与直觉相反）：
+    宿主的组件类是**无条件注入**的（dashboard/src/lib/plugin-page-theme.ts:120-130），
+    跟风格、跟装没装主题**都无关**；而且 :133 / :137 写死了
+      .maibot-button { padding: 8px 16px }
+      .maibot-card   { padding: 20px }
+    ⇒ 加了类会连「没装主题时」的内边距和字体一起改掉。
+    所以路线二**一个 maibot-* 控件类都不加**（根容器的 maibot-page 可选，见下方注释）。
+
+  产物形态：custom 页的 entry 应当是 **body 片段**。
+    宿主 customPageDocument（lib/plugin-custom-page.ts:179-184）会自己补
+    doctype / html / head / body 与 CSP。本文件为了你能直接双击打开预览，
+    写成了完整文档；**抄进插件时请只取 <style> 与 <body> 内的内容**。
+
+  三档事实（别搞错，详见 ../plugin-page-adaptation.md）：
+    · 宿主令牌是**无条件注入**的，从 dashboard 卡片/按钮实测采样。
+      官方三风格卡片圆角 = 8px(modern) / 0px(millennium) / 4px(future-retro)。
+      所以裸 var(--maibot-radius) 在没装主题时拿到的是 8px，**不是「变量不存在」**。
+    · border-radius **不继承**：负值是非法值 ⇒ 整条声明被丢弃 ⇒ 取初始值 0。
+      在方角主题下碰巧仍是方角，是**隐患不是现症**；令牌为小正值时才真出问题。
+    · 焦点框被宿主全局关掉（:focus{outline:none!important}）。
+      不带 !important 的焦点规则**从来没渲染过**，写了是死代码。
+-->
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>路线二样例 · 只用令牌 + 探测门控</title>
+<style>
+/* ==========================================================================
+   1. 令牌桥接：把宿主令牌映射成你自己的别名，**每个都带回退值**
+   --------------------------------------------------------------------------
+   回退值的作用：SDK 送 context 之前有一小段空窗，令牌为空时用你的默认值。
+   ⚠ 别误解成「没装主题时靠回退值」——宿主令牌无条件注入，装没装主题都有值。
+   ========================================================================== */
+:root {
+  --demo-bg:     var(--maibot-background, #f7f8f6);
+  --demo-panel:  var(--maibot-surface, #ffffff);
+  --demo-soft:   var(--maibot-soft, #f1f2f0);
+  --demo-ink:    var(--maibot-foreground, #17181a);
+  --demo-dim:    var(--maibot-muted, #6c6f74);
+  --demo-line:   var(--maibot-border, #e3e4e2);
+  --demo-accent: var(--maibot-primary, #3a6ea5);
+  /* ★ 强调色上的文字色**必须**取宿主配套前景色，不能写死 #fff。
+     主题深色下强调色是荧光黄绿，白字对比度只有 1.1~1.8（看不见字）；
+     宿主同时下发 primary-foreground 就是为了这个配对，它会自动变墨色。 */
+  --demo-on-accent: var(--maibot-primary-foreground, #ffffff);
+  --demo-danger: var(--maibot-danger, #c0392b);
+  --demo-round:  var(--maibot-radius, 12px);
+}
+
+/* 深色：**读 html.dark**，不要读 prefers-color-scheme。
+   用户在 dashboard 手动选的深浅与系统设置可能不一致，
+   宿主 SDK 会把真实选择同步成 iframe 内的 html.dark（lib/plugin-custom-page.ts:73）。 */
+html.dark {
+  --demo-bg:    var(--maibot-background, #16181a);
+  --demo-panel: var(--maibot-surface, #1e2124);
+  --demo-soft:  var(--maibot-soft, #24282b);
+  --demo-ink:   var(--maibot-foreground, #e8eaec);
+  --demo-dim:   var(--maibot-muted, #9aa0a6);
+  --demo-line:  var(--maibot-border, #33383c);
+}
+
+* { box-sizing: border-box; }
+
+/* ==========================================================================
+   2. 根容器：路线二**自己写底色与文字色**，不依赖 maibot-page
+   --------------------------------------------------------------------------
+   要点是「底色和文字色必须来自令牌」，**不是**「必须有那个类」。
+   如果你愿意连字体一起交给宿主，可以加 class="maibot-page"（它会带
+   margin:0 / color / background / font-family）；本样例选择不加，完全自控。
+   ========================================================================== */
+.demo-root {
+  margin: 0;
+  padding: 20px;
+  background: var(--demo-bg);
+  color: var(--demo-ink);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.demo-panel {
+  padding: 16px;
+  border: 1px solid var(--demo-line);
+  border-radius: var(--demo-round);   /* 直接用令牌 ⇒ 自动跟随，无需门控 */
+  background: var(--demo-panel);
+}
+
+/* ★ 想要「比容器小一档」的圆角时，**必须把下界夹在 0**。
+   写成 calc(var(--demo-round) - 3px) 在千禧风（令牌 0px）下算出 -3px：
+   非法值 ⇒ 整条声明被丢弃 ⇒ 取初始值 0，你想要的层级差静默消失。 */
+.demo-thumb {
+  width: 64px; height: 64px;
+  border-radius: max(0px, calc(var(--demo-round) - 3px));
+  background: var(--demo-soft);
+}
+
+/* 写死的装饰圆角：主题管不到，需要在下方门控层里压平。
+   （能改走令牌就改走令牌；这里故意留一个写死值，示范门控怎么写。） */
+.demo-badge {
+  display: inline-flex;
+  padding: 3px 8px;
+  border-radius: 999px;              /* ← 写死，门控层负责压平 */
+  background: var(--demo-soft);
+  color: var(--demo-ink);
+  font-size: 12px;
+}
+
+.demo-bar-track {
+  height: 7px;
+  border-radius: 999px;              /* ← 写死，门控层负责压平 */
+  background: var(--demo-soft);
+  overflow: hidden;
+}
+.demo-bar-fill {
+  height: 100%;
+  border-radius: 999px;              /* ← 写死，门控层负责压平 */
+  background: var(--demo-accent);
+}
+
+/* ★ 语义圆点：50% 表达的是「这是一个点」，不是装饰圆角。
+   **两种模式下都保持圆形，门控层刻意不压它。**
+   判断标准是「它是不是一个点」，不是「它圆不圆」。 */
+.demo-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--demo-accent);
+}
+
+/* 主按钮：底色走强调色令牌，文字走**配套前景色**（见 :root 注释） */
+.demo-btn {
+  padding: 8px 16px;
+  border: 1px solid var(--demo-line);
+  border-radius: var(--demo-round);
+  background: var(--demo-panel);
+  color: var(--demo-ink);
+  font: inherit;
+  cursor: pointer;
+}
+.demo-btn-primary {
+  background: var(--demo-accent);
+  border-color: var(--demo-accent);
+  color: var(--demo-on-accent);      /* ★ 不是 #fff */
+}
+
+/* ★ 焦点态：宿主把焦点框全局关掉了（:focus{outline:none!important}）。
+   层叠先比 !important 级别，再比特异性 —— 不带 !important 必输，是死代码。
+   要自绘就**必须带 !important 且提高特异性**，像下面这样才真生效。
+   ⚠ 这是「真能力」，做形状适配时不要顺手删它（删了键盘用户真的失去焦点提示）。
+   它自带的 border-radius 是**焦点框自身形状**，不是装饰圆角，门控层也不压。 */
+.demo-root :focus-visible {
+  outline: 2px solid var(--demo-accent) !important;
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+.demo-num { font-variant-numeric: tabular-nums; }
+
+/* ==========================================================================
+   3. 方角主题跟随层（B 层，可选）——**每条都带门控**
+   --------------------------------------------------------------------------
+   只补那些「写死、主题管不到」的形状值。配色和走令牌的圆角已自动跟随，不用管。
+   门控属性由下方探测脚本挂上；没装主题时属性不存在 ⇒ 整层不生效 ⇒ 逐像素不变。
+   ========================================================================== */
+html[data-ef-page='on'] .demo-badge { border-radius: 0; }
+html[data-ef-page='on'] .demo-bar-track,
+html[data-ef-page='on'] .demo-bar-fill { border-radius: 0; }
+/* 方角语法下用 1px 细线表达选中，替掉柔和外发光 */
+html[data-ef-page='on'] .demo-panel.is-active {
+  box-shadow: inset 0 0 0 1px var(--demo-accent);
+}
+/* 刻意不压：.demo-dot 的 50%（语义圆点）、.demo-root :focus-visible 的 6px（焦点框形状） */
+
+/* 动效：无限动画必须尊重系统「减少动态效果」开关。
+   包在 no-preference 里 ⇒ 用户要求减少动效时整块不生效，点保持常亮，
+   状态由旁边文字表达，不会失显。 */
+@keyframes demo-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .3; } }
+@media (prefers-reduced-motion: no-preference) {
+  html[data-ef-page='on'] .demo-dot.is-running {
+    animation: demo-pulse 1.2s ease-in-out infinite;
+  }
+}
+</style>
+</head>
+<body>
+<!-- ↓↓↓ 抄进插件时，从这里开始取（连同上面的 <style>）↓↓↓ -->
+<div class="demo-root">
+  <div class="demo-panel">
+    <p><span class="demo-badge">徽章</span> <span class="demo-dot"></span>
+       计数 <span class="demo-num">1,024</span></p>
+    <div class="demo-bar-track"><div class="demo-bar-fill" style="width:62%"></div></div>
+    <p><span class="demo-thumb" style="display:inline-block"></span></p>
+    <p>
+      <button class="demo-btn">次要</button>
+      <button class="demo-btn demo-btn-primary">主要</button>
+    </p>
+    <p style="color:var(--demo-dim)">次要说明文字走 muted 令牌。</p>
+  </div>
+</div>
+
+<script>
+/* ==========================================================================
+   方角主题能力探测 —— 每页内联一份（CSP 禁外链）
+   --------------------------------------------------------------------------
+   为什么按「能力」判而不按「品牌」判：
+     宿主传进来的 13 个令牌里**没有**「装了哪个主题」这一项；
+     而且装了主题时 context.dashboardStyle **仍然是 modern**。
+     所以只能看界面长什么样，不能看是谁装的。
+
+   判据两条，都中才算（宁可漏判不可误判）：
+     1. --maibot-radius 计算值归零
+     2. --maibot-font-body 含宽体拉丁族名（Saira / Bahnschrift）
+   官方三风格圆角 8 / 0 / 4px：千禧虽为 0 但用像素字体，靠第 2 条排除；
+   未来复古字体含 Bahnschrift（最易误判的一组），靠第 1 条「圆角非 0」排除。
+
+   ⚠ 多页插件：本段在每一页都要内联，且**副本必须逐字节一致**。
+     漏改一页那页静默不跟随主题（不报错，只是变回圆角），极难发现。
+     用 ../test_page_adaptation.py 里的一致性断言把它变成机器保证。
+   ========================================================================== */
+(function () {
+  var EF_WIDE_LATIN = /saira|bahnschrift/i;
+
+  function efTokenValue(name) {
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  }
+
+  function efRadiusIsZero() {
+    var raw = efTokenValue('--maibot-radius');
+    if (!raw) return false;
+    var nums = raw.match(/-?[\d.]+/g);
+    if (!nums || !nums.length) return false;
+    return nums.every(function (n) { return parseFloat(n) === 0; });
+  }
+
+  function efDetectSquareTheme() {
+    var on = efRadiusIsZero() && EF_WIDE_LATIN.test(efTokenValue('--maibot-font-body'));
+    var html = document.documentElement;
+    if (on) html.setAttribute('data-ef-page', 'on');
+    else html.removeAttribute('data-ef-page');   // ★ 不命中要摘掉，否则切风格后残留
+  }
+
+  // 主题样式随 context 下发（初始 srcDoc 里没有），必须监听事件而不是只跑一次。
+  window.addEventListener('maibot:context', efDetectSquareTheme);
+  // 兜底：SDK 已就绪但事件早于本脚本执行。
+  if (window.maibot && window.maibot.context && window.maibot.context.styles) efDetectSquareTheme();
+  // 字体是异步 data: 注入的，就绪后再判一次，避免首帧字体族还没解析出来。
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(efDetectSquareTheme).catch(function () {});
+  }
+})();
+</script>
+<!-- ↑↑↑ 抄到这里结束 ↑↑↑ -->
+</body>
+</html>
