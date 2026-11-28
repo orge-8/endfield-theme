@@ -1,8 +1,8 @@
 """endfield-theme 变体定义：六个维度的取值表。
 
 accent / paper / density / cut / ground / motion，对齐 endfield-ui-skill
-references/variation.md 的六维变体。默认值 = 0.3.0 现状
-（lime/neutral/compact/standard/contours/full），升级零外观变化。
+references/variation.md 的六维变体。0.5.0 起默认变体为
+yellow/neutral/compact/standard/contours/full；已有显式配置保持原值。
 
 数值来源：终末地风格设计语言（参考 endfield-ui-skill 的公开设计规则，
 CSS 全部自行重写）。颜色为 sRGB hex；HSL 三元组供 dashboard 的
@@ -82,10 +82,10 @@ def resolve(accent: str, paper: str, density: str,
             motion: str = "full") -> dict:
     """把六个开关解析成完整变体字典；非法值回退默认。
 
-    默认值 = 0.3.0 现状（lime/neutral/compact/standard/contours/full），
-    老配置升级后外观零变化。
+    0.5.0 起默认 accent=yellow；非法值也回退到标准黄。
+    其余默认维度保持 neutral/compact/standard/contours/full。
     """
-    accent = accent if accent in ACCENTS else "lime"
+    accent = accent if accent in ACCENTS else "yellow"
     paper = paper if paper in PAPERS else "neutral"
     density = density if density in DENSITIES else "compact"
     cut = cut if cut in CUTS else "standard"

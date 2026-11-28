@@ -9,6 +9,9 @@
 - 设计语法：单一强调色只做填充（当前位置/可点击/醒目提醒）、切角=可点击、
   圆角/阴影/毛玻璃全零、1px 细线分区、宽体大写英文 + 粗体中文、
   侧栏深色命令栏、短硬机械动效、红色只给删除。
+- **全站结构强化**：页标题使用 `//` 与三色起始条；页框/数据屏统一 1px 细线；
+  可选列表改为带当前态与切角的记录行；插件市场整卡使用大切角；
+  观察首页与统计页的真实主读数放大，日期和计数使用宽体等宽数字。
 - 明暗两套完整主题，跟随 WebUI 自身深浅色设置。
 - 底纹四态：等高线（默认，主区两角墨色 18% 不闭合）/ 网格 / 斜线纹 / 无。
 - 机械动效：对话框通电展开、提示条擦入擦掉、浮层通电、标签页逐行亮起、
@@ -30,8 +33,8 @@
 | 配置节 | 字段 | 默认值 | 说明 |
 |---|---|---|---|
 | `[plugin]` | `enabled` | `true` | 是否启用主题（关闭即移除注入，恢复官方外观） |
-| `[plugin]` | `config_version` | `0.4.4` | 配置版本，升级时触发归一化重建 |
-| `[appearance]` | `accent` | `lime` | 强调色：yellow(标准黄) / lime(青柠) / ice(冰蓝) / amber(琥珀) |
+| `[plugin]` | `config_version` | `0.5.5` | 配置版本，升级时触发归一化重建 |
+| `[appearance]` | `accent` | `yellow` | 强调色：yellow(标准黄) / lime(青柠) / ice(冰蓝) / amber(琥珀) |
 | `[appearance]` | `paper` | `neutral` | 纸色：neutral(中性灰白) / warm(暖米色) / cool(冷青灰) |
 | `[appearance]` | `density` | `compact` | 密度：compact(紧凑) / standard(标准) / roomy(宽松) |
 | `[appearance]` | `cut` | `standard` | 切角幅度：tight(收紧×0.6) / standard(标准×1) / wide(放宽×1.6) |
@@ -39,7 +42,8 @@
 | `[appearance]` | `motion` | `full` | 动效：full(全开) / calm(平静，去入场保留回应/退出) |
 
 六个外观开关在 WebUI 插件配置页调整，保存后即时重注入，刷新页面生效。
-默认值 = 0.3.0 现状，升级零外观变化。
+0.5.0 起新配置默认 `yellow` 标准黄；已有 `config.toml` 中保存的强调色不会被默认值覆盖，
+需要换色请在配置页显式选择。
 配置页标签与下拉选项均为中文（zh-CN，另附 en-US 对照）；配置值本身保持英文枚举。
 `config.toml` 由 Runner 自动生成，不要手工提交；写入时不能带 UTF-8 BOM。
 
@@ -69,13 +73,15 @@ manifest `capabilities` 声明：`declarative_basic`（WebUI 配置页基础声�
 | 键盘 Tab 到某些按钮/开关看不出焦点在哪 | 0.4.4 已修：宿主全局关掉焦点框，旧版只补了带 `dashboard-button` 类的控件，205 处裸按钮与开关/勾选框/标签页全漏。升级到 0.4.4 并完整重启 |
 | 提示条左边那条竖旗看不见 | 0.4.4 已修：旧版用强调色，浅色下压白板仅 1.11~1.79:1。现浅色改墨、深色用强调色 |
 | 报错提示条不再是红色 | 0.4.4 起的有意变更：宿主「删除失败」与「保存失败」共用同一个类，CSS 分不开，故统一不着红（红色只留给删除控件），错误由标题文字表达 |
+| 升级 0.5.0 后强调色仍是旧的青柠 | 旧 `config.toml` 已保存 `accent`，显式配置优先于新默认值。到配置页把强调色改为「标准黄」并保存 |
 | 想恢复官方外观 | 配置页关闭 enabled，或卸载插件（自动还原 index.html 并清理字体与 JS） |
 | dashboard 升级后样式错位 | 选择器基于 dashboard 1.10.8 核对，大版本升级需跟进维护 |
 
 ## 开发
 
 ```bash
-bash /c/Users/38160/Desktop/tools/maibot-devkit/gate.sh /c/Users/38160/Desktop/endfield-theme
+# <devkit> 指向本地 maibot-devkit，<plugin> 指向本插件目录
+bash <devkit>/gate.sh <plugin>
 ```
 
 测试要点：注入→幂等→热更新→停用移除→卸载还原闭环；关键断言对照官方 HTML 原文，

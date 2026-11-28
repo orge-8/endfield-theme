@@ -1,5 +1,243 @@
 # Changelog
 
+## 0.5.5 (2026-11-28)
+
+插件卡右下切角重做，以及「已安装」徽章仍然只露一半。
+
+### A. 切角不再用 clip-path
+
+- `clip-path` 裁的是整个元素盒子，斜边处**没有描边**：右边框和下边框在切口突然断掉，
+  看起来像「被啃掉一角」，而不是切角。
+- 改用「与页面同色的三角遮罩 + 斜边 1px 细线」：
+  - `::after` 26×26（跟随 `--ef-cut-panel`），`right/bottom: -1px` 盖住卡片边框角；
+  - 两层 `linear-gradient(to bottom right, …)`：一层铺 `--ef-paper` 盖出三角，
+    一层在 50% 处画 `--ef-rule` 1px 线，边框沿斜边收口；
+  - `pointer-events: none`，不影响整卡点击。
+
+### B. 「已安装」徽章的位移不在徽章身上
+
+- 宿主结构是 `<div class="absolute left-4 top-0 -translate-y-1/2">…<span data-plugin-installed-badge>`，
+  `-translate-y-1/2` 写在**父级容器**上，只清 span 的 `translate` 没有作用。
+- 补 `[data-plugin-market-card] div:has(> [data-plugin-installed-badge])` 一并清零。
+- 真机实测：`installed.y = 841 / card.y = 840`（此前是 829，被顶出 11px）。
+
+### 验证
+
+- pytest：**76 passed**（切角用例改为断言遮罩 + 斜边线，新增父级位移断言）。
+- 真机：左右徽章 `inside: true`，growth 黄底、installed 墨底，
+  切角斜边有 1px 线、三角与页面底色一致。
+- 门禁：**PASS 3 / SKIP 0 / FAIL 0**。
+
+## 0.5.4 (2026-11-28)
+
+插件市场的榜单/已安装徽章只显示一半。
+
+### 原因
+
+- 宿主把徽章做成跨边框贴纸：`top-0` + `-translate-y-1/2`，一半压在卡片上边框外侧。
+- 0.5.0 给可点击的插件卡加了右下切角 `clip-path`。`clip-path` 裁的是**整个元素盒子**，
+  卡片外的子元素一并被裁 —— 徽章露在外面的上半截直接消失，只剩卡片内的下半截。
+- 另外 Tailwind v4 的 `-translate-y-1/2` 走独立 `translate` 属性，
+  只写 `transform: none` 压不住它（0.5.4 首次尝试就是因此无效）。
+
+### 改法
+
+- 徽章收回卡片内：`top: 0`、`transform: none`、`translate: none` 三个一起清，
+  变成卡片右上（右上角不切）的内嵌角标，不再被裁。
+- 卡片 `padding-top: 2.25rem`，给徽章 25px 高度让位，标题不被压住。
+- 右下切角保留（切角=可点击的语法不变），只是裁不到任何跨出去的子元素了。
+
+### 验证
+
+- 真机量到 `badge.y = 177`、`card.y = 176`（`inside: true`），
+  徽章 87×25 完整，标题 `y = 241` 不重叠。
+- pytest：**76 passed**（新增 1 条：内嵌位置、`translate` 清零、顶部留白、切角保留）。
+- 门禁：**PASS 3 / SKIP 0 / FAIL 0**。
+
+## 0.5.3 (2026-11-28)
+
+页面重载时居中的加载指示（`ThinkingIllustration`，三个点）重做。
+
+### 现状为什么难看
+
+真机量到的三条叠加：
+
+1. 该组件也是 `role="status"`，被 0.5.0 的提示条规则当成 toast，套上
+   「51px 深底 + 1px 细框 + 4px 左侧竖旗」——加载指示外面多了一个小黑条；
+2. `.animate-bounce` 被主题统一停表（本来是给重启遮罩的装饰粒子做的），
+   三点**完全不动**；
+3. 圆点已被全局直角化，但三个静止方块套在框里，读不出在加载。
+
+### 改法
+
+- 只挑「含 `.animate-bounce` 子元素」的 `role=status` 分流：去掉外框、底色、竖旗，
+  改为透明背景 + 一条 1px 基线（`::after`），像设备自检面板。
+- 三个方块保持宿主尺寸，`gap: 8px → 5px` 收成一组指示灯；
+  动画换成 `ef-load-step`：720ms、`steps(1, end)` 硬切三档（0.26 / 0.58 / 1），
+  不弹跳、不缩放、不发光。
+- 错峰用 `nth-child(2|3)` 补回 120ms / 240ms：宿主的让内联
+  `animation-delay` 被 `.animate-bounce{animation:none!important}` 的**简写**清零了，
+  所以新规则只写 `animation-name/duration/timing-function/iteration-count` 四个长属性，
+  不用 `animation` 简写。
+- 颜色：浅色用墨（10px 黄方块压白纸只有 1.1:1），深色才用强调色。
+- `prefers-reduced-motion: reduce` 与 `motion=calm` 下停表，三点保持全亮。
+
+### 验证
+
+- pytest：**75 passed**（新增 1 条：外框摘除、steps 硬切、禁用简写、错峰延迟、双主题配色）。
+- 真机 1440 深色/浅色各抓两帧：`animation-delay = 0 / 0.12 / 0.24s`，
+  opacity 依次变化，确认在「一档一档亮」，不是同步闪。
+- 门禁：**PASS 3 / SKIP 0 / FAIL 0**。
+
+## 0.5.2 (2026-11-28)
+
+深色模式下两处「主题强调色与宿主自带色叠加」的冲突。
+
+### A. 配置页下拉：黄底上套黑块
+
+- 配置页「选择设置页面」下拉的每行是 `.dashboard-button--outline`
+  （`data-config-section-menu-row`），悬停时主题铺强调色；
+  行内 Radix `menuitem` 又按自己的 focus 态铺了一层深底，
+  叠加成「黄底 + 黑块 + 白字」。
+- 改为：外层行承担底色，内层 `menuitem`（含 `data-highlighted`、
+  `:focus-visible`）背景透明、颜色继承。
+- 真机验证：悬停「记忆」行 `rowBg=rgb(255,250,0)`、`itemBg=rgba(0,0,0,0)`、
+  文字 `rgb(22,22,22)`。
+
+### B. 插件市场徽章：宿主橙色与单一强调色冲突
+
+- 榜单徽章（`data-plugin-growth-badge`）与已安装徽章
+  （`data-plugin-installed-badge`）由宿主写死 `bg-orange-700 / dark:bg-orange-400`。
+- 改为：榜单走强调色填充 + 墨字，已安装走墨底反白，均为方形无投影。
+
+### 验证
+
+- pytest：**74 passed**（新增 2 条：下拉单层底色、徽章跟随单一强调色）。
+- 反向验证：删掉 menuitem 透明规则 / 把徽章改回橙色，对应用例均失败。
+- 门禁：**PASS 3 / SKIP 0 / FAIL 0**。
+
+## 0.5.1 (2026-11-28)
+
+在 MaiBot **1.4.8 / dashboard 1.10.8 / SDK 2.23.0** 的本地实例上装着实跑复核后的修正。
+桌面深色与浅色结构成立；问题集中在一处门控缺陷和一列被放大的统计数字。
+
+### A. 修复：注释紧邻 `@media` / `@container` 导致整块规则静默失效
+
+- `et_stylegate.gate_css` 解析规则头时，把「前置注释 + `@media`」整段当成选择器，
+  拼出 `html:not([data-dashboard-style='millennium'])… @media (max-width: 640px){…}`
+  这种非法 CSS，浏览器整块丢弃。
+- 全文件共 **6 处**受影响：触屏 `hover:none`、宽容器主读数、两种 `prefers-reduced-motion`、
+  `max-width: 1023px` 移动端适配、`max-width: 640px` 窄屏适配。
+  也就是说 0.5.0 及更早交付的「移动端适配 / 减少动效降级 / 触屏去悬停」**一直没有真正生效**。
+- 修法：判断 at-rule 前先剥离前导注释，输出仍保留原注释（不影响可读性）。
+- 反向验证：把 `head_code` 改回 `head.strip()`，新增用例立即失败。
+
+### B. 统计页主读数不再被截断
+
+- `[data-stats-kpis]` 是 `repeat(4, minmax(0,1fr))` 四列网格，宿主对
+  `[data-stats-kpi] [data-board-number]` 写了 `overflow:hidden + text-overflow:ellipsis`。
+- 0.5.0 把它放大到 `2.75rem` 后，真机上 `¥0.65` 显示成 `¥0....`、`58.76万` 显示成 `58....`。
+- 改法：统计 KPI 回到宿主字号 `1.75rem` 并取消额外加宽（`font-stretch: 100%`）；
+  放大只保留在观察首页，且限定在 `@container board (min-width: 56rem)` 宽容器内。
+
+### C. 统计页小字键值行不再硬切
+
+- `花费/消息数量` 曾被切成「花费/消」「总数量」两行，`50.13` 与「万」分行。
+- 改为：标签过长收省略号（`text-overflow: ellipsis`），数值 `flex-shrink: 0` + `nowrap`。
+
+### D. 窄屏（≤640px）收回装饰，把宽度让给内容
+
+- 收起 `data-board-module-code` / `data-board-rule-code` 英文代号与资讯条 `//` 前缀，
+  卡片标题只留中文。
+- 主读数降到 `1.5rem`，`data-observation-hero` 与磁盘/资讯行回到 100% 字宽。
+- **不改宿主布局**：原版 390px 同样把「活动」排两行、把磁盘数值省略，
+  这是宿主既有表现，主题只负责别把字撑得更宽。
+
+### E. 已知但未改（宿主结构 / 数据量所致）
+
+- `// PERIOD`、`// CACHE`、`// MODELS` 在数据少时留白偏大；
+  统计页 9 个「新增」增量标签偏吵；`// STATS` 与右侧时段切换器分居两端。
+- 这些由宿主卡片高度与布局决定，强行改写会与宿主升级冲突，留给宿主。
+
+### 验证
+
+- pytest：**72 passed**（新增 4 条：门控注释回归、KPI 字号上限、键值行省略、窄屏收代号）。
+- 反向验证 3/3：门控注释剥离、统计 KPI 字号、窄屏收代号，改回旧实现均失败，恢复后 SHA-256 一致。
+- 门禁：**PASS 3 / SKIP 0 / FAIL 0**；静态检查 36 PASS / 1 预期 WARN；冒烟 OK。
+- 真机复核：1440 浅色/深色、390 手机三种视口 `scrollWidth == clientWidth`，无横向溢出。
+
+## 0.5.0 (2026-11-28)
+
+全 WebUI 结构强化，并把新配置的默认强调色改为标准黄。方向经确认：
+只加强结构、版式和真实数据层级，不靠提高荧光色或底纹浓度制造差异。
+
+### A. 默认强调色改为标准黄
+
+- `AppearanceConfig.accent` 默认 `lime → yellow`；`resolve()` 对非法 accent 也回退 `yellow`。
+- 已有 `config.toml` 中显式保存的 accent 不被覆盖；旧实例仍显示原选择，
+  README 增加对应排查项，避免把“配置优先”误判成升级失败。
+- 显式选择青柠、冰蓝、琥珀仍可用，其余五个外观维度默认值不变。
+
+### B. 全站页标题与结构基线
+
+- 只在 `[data-dashboard-main]` 内接管标题：h1 增加 `//` 结构前缀和硬分段三色条
+  （品红 / 当前强调色 / 薄荷），三色条只出现在页面开始处。
+- 没有可靠英文字段时不伪造英文眉标；英文小字继续来自宿主真实
+  `data-board-module-code` / `data-board-rule-code` 等字段。
+- 排除宿主 404 的 `150px` 状态码（不加 `//`/三色条，也不改字号）和移动端
+  `data-mobile-large-title` 的既有字号，避免通用规则压坏两个特殊情况。
+- h2/h3 只统一字重、行高和字距；`time`、`[data-numeric]`、统计生成时间改用宽体等宽数字。
+
+### C. 页框、数据屏与记录行
+
+- `PageFrame` / `DataPanel` 统一 **1px** 细线（宿主 PageFrame 原为 2px），保持直角；
+  只读面板不切角。
+- `[data-dashboard-list-item]` 改成记录行：细线分隔，可点行右下小切角，
+  右留白同时计入切角与 Prompt 目录的滚动条预留宽度；当前项强调色填充 + 墨字 + 粗体，
+  不让“当前”只靠颜色表达。
+- 统计明细按钮行纳入同一套记录行语法；桌面悬停右移 6px，减少动效时整段不生效。
+
+### D. 可点大切角与主读数
+
+- 插件市场 `PluginCard` 使用 `--ef-cut-panel` 大切角，仅命中真实整卡可点的
+  `data-plugin-market-card`；底部 padding 与切角等高，`wide` 档也不会压到操作按钮。
+- 观察首页 `data-observation-usage-big` 与统计页 `data-stats-kpi` 的真实主读数放大到
+  `clamp(1.75rem, 1.35rem + 1.2vw, 2.75rem)`；普通正文和表格字号不变。
+- 只读看板模块与卡片保持直角，形状语义不变。
+
+### E. 选择器核对与测试基建
+
+- 对照本机 MaiBot 1.4.8 / dashboard 1.10.8 源码确认：
+  `[data-observation-page-bar]` 在该版本只有 CSS、没有真实 JSX 消费者，
+  本次不作为结构强化支点，新规则落在真实存在的 `data-dashboard-main`、
+  `data-dashboard-page-frame`、`data-dashboard-list-item`、`data-plugin-market-card`
+  与统计/看板数据属性上。
+- 修正旧测试的绝对导入 `import et_variants`：从工作区执行 pytest 时不稳定，
+  改为与其它用例一致的包式 `import_module("endfield_theme.et_variants")`。
+
+### 验证
+
+- pytest：**69 passed**（新增 6 条：默认色 1 条 + 结构规则/门控 5 条；更新旧配置热更新断言）。
+- 冒烟：**smoke: OK**（注入 → 幂等 → 热更新 → 停用移除 → 卸载还原）。
+- 门禁：**PASS 3 / SKIP 0 / FAIL 0**；静态检查 36 PASS / 1 WARN / 0 FAIL
+  （WARN = 纯注入插件无组件装饰器，属预期）。
+- 反向验证 3 轮，均先确认对应用例失败，再按字节恢复文件：
+  1. 删掉插件市场卡的底部切角留白 → 大切角用例 **1 failed**；
+  2. 去掉当前记录行的粗体备份 → 记录行用例 **1 failed**；
+  3. 默认 accent 改回 lime → 默认色用例 **1 failed**。
+  每轮恢复后文件 SHA-256 与改动前一致。
+- 视觉复核（**partial**）：用本机 dashboard 1.10.8 编译样式和宿主
+  `observation/surfaces/board/statistics` 路由样式搭建隔离夹具，
+  检查 1366×900 浅色/深色与 CDP 强制 390×844 手机视口。
+  三档均为 `scrollWidth == clientWidth`（无横向溢出），未发现文字重叠、
+  切角压字或主读数裁切；插件卡大切角内无控件。夹具不等于完整真机页面，
+  登录态页面与真实数据密度仍需真机复核。
+
+### 已知边界
+
+- 已有配置的 accent 不会被改；默认值只影响新实例与非法值回退。
+- 本仓库仍没有真实 dashboard 的截图基线；像素级观感需要在真机 WebUI 复核。
+
 ## 0.4.4 (2026-11-23)
 
 按 endfield-ui skill 全量审计后的四项整治：无障碍焦点环、提示条竖旗可见性、

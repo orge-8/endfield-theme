@@ -29,6 +29,9 @@ GATE = ":not([data-dashboard-style='millennium']):not([data-dashboard-style='fut
 _CONDITIONAL = re.compile(r"^@(media|supports|container|layer)\b", re.I)
 # 整体跳过的 at-rule（声明块，不含选择器）
 _SKIP = re.compile(r"^@(keyframes|-webkit-keyframes|font-face|property|charset|import)\b", re.I)
+# 规则头部的注释（含空白）。注释紧挨 @media 时不能把整段当选择器，
+# 否则会拼出「html:not(...) @media{...}」这种非法 CSS，整块被浏览器丢弃。
+_LEADING_COMMENT = re.compile(r"^(?:\s*/\*.*?\*/\s*)+", re.S)
 
 
 def _gate_selector(sel: str) -> str:
@@ -71,7 +74,8 @@ def gate_css(css: str) -> str:
             out.append(css[i:])
             break
         head = css[i:brace]
-        head_stripped = head.strip()
+        # 判断 at-rule 时先剥掉前导注释，输出仍保留原注释
+        head_code = _LEADING_COMMENT.sub("", head).strip()
         # 匹配块结束（含嵌套）
         depth, j = 1, brace + 1
         while j < n and depth:
@@ -81,11 +85,11 @@ def gate_css(css: str) -> str:
                 depth -= 1
             j += 1
         body = css[brace + 1:j - 1]
-        if _SKIP.match(head_stripped):
+        if _SKIP.match(head_code):
             out.append(head + "{" + body + "}")
-        elif _CONDITIONAL.match(head_stripped):
+        elif _CONDITIONAL.match(head_code):
             out.append(head + "{" + gate_css(body) + "}")
-        elif head_stripped.startswith("@"):
+        elif head_code.startswith("@"):
             # 其他 at-rule（如 @page）：原样保留
             out.append(head + "{" + body + "}")
         else:

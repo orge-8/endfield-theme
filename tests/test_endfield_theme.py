@@ -76,9 +76,19 @@ def test_resolve_defaults(module):
 
 def test_resolve_invalid_falls_back(module):
     v = module.resolve("red", "hot", "huge")
-    assert v["accent"] == "lime"
+    assert v["accent"] == "yellow"
     assert v["paper"] == "neutral"
     assert v["density"] == "compact"
+
+
+def test_default_accent_is_standard_yellow(module):
+    """0.5.0 新配置默认标准黄；显式选择 lime 等其它配色仍然可用。"""
+    cfg = module.EndfieldThemeConfig()
+    assert cfg.appearance.accent == "yellow"
+    default = module.resolve(cfg.appearance.accent, "neutral", "compact")
+    assert default["accentHex"] == "#FFFA00"
+    lime = module.resolve("lime", "neutral", "compact")
+    assert lime["accentHex"] == "#B8FF3D"
 
 
 def test_resolve_all_combinations(module):
@@ -237,7 +247,7 @@ def test_config_update_switches_accent(env):
     asyncio.run(plugin.on_config_update("self", {}, "0.4.2"))
     html = (dist / "index.html").read_text(encoding="utf-8")
     assert "--ef-accent:#FFB31F" in html
-    assert "--ef-accent:#B8FF3D" not in html, "旧强调色残留"
+    assert "--ef-accent:#FFFA00" not in html, "旧默认强调色残留"
     assert html.count('id="endfield-theme-style"') == 1
 
 
@@ -691,11 +701,12 @@ def test_css_js_feedback_parts():
     assert "::view-transition-old(root)" in css
 
 
-def test_default_appearance_unchanged(env):
-    """默认配置注入产物 = 0.3.0 语义：cut×1 / contours / full，外观零变化。"""
+def test_default_appearance_current(env):
+    """0.5.0 默认产物：标准黄 + cut×1 / contours / full。"""
     plugin, dist = env
     _apply(plugin)
     html = (dist / "index.html").read_text(encoding="utf-8")
+    assert "--ef-accent:#FFFA00" in html
     assert "--ef-cut-k:1.0" in html
     assert "--ef-cut-sm:7px" in html
     assert 'data-ef-ground="contours"' in html
@@ -1198,7 +1209,8 @@ def test_contour_decor_within_band_all_variants(module):
     反向验证：把 dark_own 里的 16% 改回 18%，这条立刻红。
     """
     import re
-    import et_variants as V
+    from importlib import import_module
+    V = import_module("endfield_theme.et_variants")
     ratio, mix = _color_tools()
     # 读产物真值：从 build_preamble 的实际输出里取百分比，不读源码常量
     pre = module.build_preamble(module.resolve("lime", "neutral", "compact"))
@@ -1254,3 +1266,323 @@ def test_new_rules_survive_stylegate(env):
     assert re.search(r"html\.dark" + re.escape(gate) + r" \[role='status'\]", style), (
         "产物里缺深色提示条竖旗规则"
     )
+
+
+# ---- 0.5.0 全站结构强化：真实标题 / 细线 / 记录行 / 大数字 / 可点大切角
+
+
+def test_structural_page_titles_use_real_content():
+    """主工作区标题有 // 与三色起始条，但不伪造英文眉标或编号。"""
+    d = _decls()
+    base = "[data-dashboard-main='true'] h1:not(.sr-only)"
+    plain = base + ":not([class*='150px'])"
+    assert plain + "::before" in d
+    assert plain + "::after" in d
+    assert "content: '//'" in d
+    assert "var(--ef-tri-a)" in d and "var(--ef-tri-c)" in d
+    # 保留 404 的 150px 状态码与移动端既有大标题，不被通用字号/装饰压坏。
+    assert ":not([class*='150px'])" in d
+    assert base + "::before" not in d, "404 状态码也会被误加 // 前缀"
+    assert ":not([data-mobile-large-title='true'])" in d
+    # 日期/数值字段来自宿主真实 DOM。
+    assert "[data-dashboard-main='true'] time" in d
+    assert "[data-dashboard-main='true'] [data-numeric='true']" in d
+
+
+def test_frames_hairline_and_selection_rows():
+    """页框/数据屏为 1px 直角；可点列表行有切角、留白和明确当前态。"""
+    import re
+    d = _decls()
+    frame = re.search(
+        r"\[data-dashboard-page-frame='true'\],\s*"
+        r"\[data-dashboard-data-panel='true'\]\s*\{([^}]*)\}", d
+    )
+    assert frame, "缺页框/数据屏规则"
+    assert "border: 1px solid var(--ef-rule) !important" in frame.group(1)
+    assert "clip-path" not in frame.group(1), "只读面板不得切角"
+
+    enabled = re.search(
+        r"\[data-dashboard-list-item='true'\]:not\(:disabled\):not\(\[aria-disabled='true'\]\)"
+        r"\s*\{([^}]*)\}", d
+    )
+    assert enabled, "可点列表行缺切角规则"
+    assert "clip-path: polygon" in enabled.group(1)
+    assert "var(--ef-cut-sm)" in enabled.group(1)
+    assert "padding-right: calc" in enabled.group(1), "切角旁必须同步留白"
+    selected = re.search(
+        r"\[data-dashboard-list-item='true'\]\[data-selected='true'\]\s*\{([^}]*)\}", d
+    )
+    assert selected, "缺记录行当前态"
+    assert "background: var(--ef-accent) !important" in selected.group(1)
+    assert "color: #161616 !important" in selected.group(1)
+    assert "font-weight: 700" in selected.group(1), "当前项不能只靠颜色区分"
+
+
+def test_panel_cut_only_on_clickable_market_card():
+    """大切角只给真实 onClick 的 PluginCard；底部留白随 cut 档位缩放。
+
+    0.5.4 起切角改用「同色三角遮罩 + 斜边细线」实现，不再用 clip-path：
+    clip-path 会连跨边框的榜单徽章一起裁，且斜边没有描边，像被啃掉一角。
+    """
+    import re
+    d = _decls()
+    card = re.search(r"(?<![\w.-])\[data-plugin-market-card='true'\]\s*\{([^}]*)\}", d)
+    assert card, "缺插件市场大切角"
+    body = card.group(1)
+    assert "padding-bottom: var(--ef-cut-panel) !important" in body
+    assert "clip-path" not in body, "切角不得再用 clip-path"
+    cut = re.search(r"\[data-plugin-market-card='true'\]::after\s*\{([^}]*)\}", d)
+    assert cut, "缺切角遮罩"
+    assert "var(--ef-cut-panel)" in cut.group(1)
+    assert "var(--ef-rule) calc(50% + 0.5px)" in cut.group(1), "斜边要有 1px 描边"
+    board = re.search(r"(?<![\w.-])\[data-board-module='true'\]\s*\{([^}]*)\}", d)
+    assert board and "clip-path" not in board.group(1), "只读看板不得误用大切角"
+
+
+def test_primary_numbers_have_display_hierarchy():
+    """只放大首屏主读数；统计页四列 KPI 维持宿主字号，避免被 ellipsis 截断。
+
+    真机实测：统计页 `[data-stats-kpis]` 是四列网格，宿主对该元素写了
+    overflow:hidden + text-overflow:ellipsis，放大到 2.75rem 后 `¥0.65`
+    被截成 `¥0....`、`58.76万` 被截成 `58....`。
+    """
+    import re
+    d = _decls()
+    for sel in (
+        "[data-observation-usage-big='true'] > [data-board-number='true']",
+        "[data-stats-kpi='true'] > [data-board-number='true']",
+    ):
+        assert sel in d, f"缺主读数选择器 {sel}"
+    # 放大限定在宽容器查询内，窄容器交给宿主两列布局
+    assert "@container board (min-width: 56rem)" in d
+    wide = d.split("@container board (min-width: 56rem)")[1][:400]
+    assert "[data-observation-usage-big='true'] > [data-board-number='true']" in wide
+    assert "clamp(2rem, 1.6rem + 1vw, 2.75rem) !important" in wide
+    # 统计 KPI 用宿主字号，且不再叠加 font-stretch 加宽
+    kpi = [
+        m.group(1)
+        for m in re.finditer(
+            r"(?<![\w.-])\[data-stats-kpi='true'\] > \[data-board-number='true'\]\s*\{([^}]*)\}",
+            d,
+        )
+    ]
+    assert kpi, "缺统计 KPI 字号规则"
+    assert any("font-size: 1.75rem !important" in body for body in kpi), "统计 KPI 未回到宿主字号"
+    assert all("clamp" not in body for body in kpi), "统计 KPI 不得再放大"
+    assert any("font-stretch: 100%" in body for body in kpi)
+    assert "button[data-stats-row='true']" in d, "统计按钮行未纳入记录行语法"
+    assert "button[data-stats-row='true']:hover" in d
+    assert "[data-dashboard-list-item='true']:not(:disabled):hover" in d
+
+
+def test_stats_kv_labels_ellipsize_instead_of_splitting():
+    """四列里的小字键值行：标签过长收省略号，数值不折行。"""
+    import re
+    d = _decls()
+    label = re.search(
+        r"\[data-stats-kv='true'\] > span:first-child\s*\{([^}]*)\}", d
+    )
+    assert label, "缺键值行标签规则"
+    assert "text-overflow: ellipsis" in label.group(1)
+    assert "white-space: nowrap" in label.group(1)
+    value = re.search(r"\[data-stats-kv='true'\] > span:last-child\s*\{([^}]*)\}", d)
+    assert value and "flex-shrink: 0" in value.group(1)
+    assert "white-space: nowrap" in value.group(1)
+
+
+def test_narrow_screen_drops_code_labels():
+    """窄屏（<=640px）收起英文代号眉标，并把主读数降到 1.5rem。
+
+    原版 390px 下同样把「活动」排两行、磁盘数值省略，属宿主既有表现；
+    这里只负责别把字撑宽、别让代号挤掉中文标题。
+    """
+    import re
+    d = _decls()
+    assert "@media (max-width: 640px)" in d
+    narrow = d.split("@media (max-width: 640px)")[1][:700]
+    assert "[data-board-module-code='true']" in narrow
+    assert "[data-board-rule-code='true']" in narrow
+    assert "display: none !important" in narrow
+    assert "font-size: 1.5rem !important" in narrow
+    # 不改宿主两列布局：窄屏块里不得出现 grid-template-columns
+    assert "grid-template-columns" not in narrow
+    # hero 只收字宽，不强制 nowrap（nowrap 会把右侧运行时长挤成逐字竖排）
+    hero = re.search(r"\[data-observation-hero\]\s*\{([^}]*)\}", narrow)
+    assert hero and "font-stretch: 100% !important" in hero.group(1)
+    assert "nowrap" not in hero.group(1)
+
+
+def test_stylegate_keeps_conditional_atrule_after_comment(module):
+    """注释紧邻 @media/@container 时，门控不能拼到选择器位置。
+
+    回归背景：0.5.0 的 gate_css 把「注释 + @media」整段当成选择器，
+    拼出 `html:not(...) @media{...}` 这种非法 CSS，浏览器整块丢弃——
+    网页端 6 处自适应/动效规则（含移动端适配）因此静默失效。
+    """
+    from importlib import import_module
+    sg = import_module("endfield_theme.et_stylegate")
+    css = (
+        "/* 块说明 */\n"
+        "@media (max-width: 640px) {\n"
+        "  [data-x='true'] { display: none !important; }\n"
+        "}\n"
+        "/* 容器说明 */\n"
+        "@container board (min-width: 56rem) {\n"
+        "  [data-y='true'] { font-size: 2rem; }\n"
+        "}\n"
+    )
+    gated = sg.gate_css(css)
+    for at in ("@media (max-width: 640px)", "@container board (min-width: 56rem)"):
+        assert at in gated, f"{at} 未保留在 at-rule 位置"
+        before = gated[: gated.index(at)].rstrip()
+        assert not before.endswith(sg.GATE), f"{at} 前面被拼了门控前缀（非法 CSS）"
+        assert not before.endswith(")"), f"{at} 前面残留伪选择器（非法 CSS）"
+    # 内部规则仍然逐条门控
+    assert f"html{sg.GATE} [data-x='true']" in gated
+    assert f"html{sg.GATE} [data-y='true']" in gated
+    # 注释保留
+    assert "/* 块说明 */" in gated and "/* 容器说明 */" in gated
+
+
+def test_structural_rules_survive_injection_and_stylegate(env):
+    """读最终注入产物：0.5.0 关键规则逐分支带官方风格让位门控。"""
+    plugin, dist = env
+    _apply(plugin)
+    html = (dist / "index.html").read_text(encoding="utf-8")
+    style = html.split('id="endfield-theme-style"')[1].split("</style>")[0]
+    gate = ":not([data-dashboard-style='millennium']):not([data-dashboard-style='future-retro'])"
+    for key in (
+        "[data-dashboard-main='true'] h1:not(.sr-only):not([class*='150px'])::before",
+        "[data-dashboard-list-item='true'][data-selected='true']",
+        "[data-plugin-market-card='true']",
+        "button[data-stats-row='true']",
+    ):
+        assert key in style, f"注入产物缺 {key}"
+        idx = style.index(key)
+        start = max(style.rfind("}", 0, idx), style.rfind("{", 0, idx)) + 1
+        end = style.index("{", idx)
+        for branch in style[start:end].split(","):
+            assert gate in branch, f"{key} 分支未门控：{branch.strip()[:90]}"
+
+
+def test_dropdown_row_keeps_single_background():
+    """配置页「钉固标签」下拉：外层行承担悬停底色，内层 menuitem 必须透明。
+
+    真机现象：外层 `.dashboard-button--outline:hover` 铺强调色，
+    内层 Radix menuitem 的 focus 深底再叠一层，变成「黄底 + 黑块 + 白字」。
+    """
+    import re
+    d = _decls()
+    assert "[data-config-section-menu-row='true'] [role='menuitem']" in d
+    seg = d[d.index("[data-config-section-menu-row='true'] [role='menuitem']"):]
+    body = seg[seg.index("{") + 1: seg.index("}")]
+    assert "background: transparent !important" in body
+    assert "color: inherit !important" in body
+    # 覆盖 highlighted / focus-visible 两个 Radix 状态
+    assert "[data-highlighted]" in d
+    assert "[role='menuitem']:focus-visible" in d
+
+
+def test_plugin_badges_follow_single_accent():
+    """插件市场榜单/已安装徽章不用宿主橙色，跟随单一强调色语法。"""
+    import re
+    d = _decls()
+    growth = re.search(r"\[data-plugin-growth-badge\]\s*\{([^}]*)\}", d)
+    assert growth, "缺榜单徽章规则"
+    assert "var(--ef-accent) !important" in growth.group(1)
+    assert "border-radius: 0 !important" in growth.group(1)
+    installed = re.search(
+        r"(?<!\[data-plugin-market-card='true'\] )"
+        r"\[data-plugin-installed-badge='true'\]\s*\{([^}]*)\}",
+        d,
+    )
+    assert installed, "缺已安装徽章规则"
+    assert "var(--ef-ink) !important" in installed.group(1)
+    assert "var(--ef-paper) !important" in installed.group(1)
+    for body in (growth.group(1), installed.group(1)):
+        assert "orange" not in body.lower()
+
+
+def test_loading_dots_are_stepped_leds():
+    """路由加载三点：摘掉 toast 外框、方形、720ms 一档一档硬亮、浅墨深黄。
+
+    真机现象（0.5.2）：`ThinkingIllustration` 也是 role=status，
+    被提示条规则套成「51px 深底 + 4px 黄竖旗」，加上 animate-bounce 被全局停表，
+    最终是「三个静止方块 + 一条黑框」，完全看不出在加载。
+    """
+    import re
+    d = _decls()
+    sel = "[role='status']:has(> .animate-bounce)"
+    assert sel in d, "缺加载指示的选择器分流"
+    box = d[d.index(sel):]
+    box = box[: box.index("}")]
+    assert "border: 0 !important" in box, "未摘掉提示条外框"
+    assert "background: transparent !important" in box
+    assert "color: var(--ef-ink) !important" in box, "浅色应用墨（黄方块压白纸 1.1:1）"
+    assert "html.dark [role='status']:has(> .animate-bounce)" in d, "深色应换强调色"
+
+    dot = re.search(
+        r"\[role='status'\]:has\(> \.animate-bounce\) > \.animate-bounce\s*\{([^}]*)\}", d
+    )
+    assert dot, "缺方块指示灯规则"
+    body = dot.group(1)
+    assert "animation-name: ef-load-step !important" in body
+    assert "steps(1, end)" in body, "必须硬切，不做弹跳/缩放"
+    assert "animation: ef-load-step" not in body, "简写会把宿主内联 delay 归零"
+    assert "border-radius: 0 !important" in body
+
+    # 错峰延迟靠位置补回（内联 delay 被 animation:none !important 的简写清零）
+    assert "nth-child(2)" in d and "animation-delay: 120ms !important" in d
+    assert "nth-child(3)" in d and "animation-delay: 240ms !important" in d
+    # 减少动效与 calm 档要停表
+    assert "@keyframes ef-load-step" in d
+    assert "html[data-ef-motion='calm'] [role='status']:has(> .animate-bounce)" in d
+    assert "@media (prefers-reduced-motion: reduce)" in d
+
+
+def test_market_badge_sits_inside_card():
+    """插件市场徽章收回卡片内：clip-path 会把跨边框的那一半裁掉。
+
+    真机现象（0.5.2/0.5.3）：徽章仍是 `top-0 -translate-y-1/2`，
+    一半在卡片外被 clip-path 切掉，只剩半截文字。
+    另外 Tailwind v4 的 `-translate-y-1/2` 走独立 `translate` 属性，
+    只写 `transform: none` 压不住，两个都要清。
+    """
+    import re
+    d = _decls()
+    badge = re.search(
+        r"\[data-plugin-market-card='true'\] \[data-plugin-growth-badge\],\s*"
+        r"\[data-plugin-market-card='true'\] \[data-plugin-installed-badge='true'\]\s*\{([^}]*)\}",
+        d,
+    )
+    assert badge, "缺市场徽章收拢规则"
+    body = badge.group(1)
+    assert "top: 0 !important" in body
+    assert "translate: none !important" in body, "Tailwind v4 的 translate 属性必须清零"
+    assert "transform: none !important" in body
+
+    # 「已安装」的位移在父容器上（absolute left-4 top-0 -translate-y-1/2），
+    # 只清 span 自己的 translate 压不住，父级仍把它顶出卡片。
+    holder = re.search(
+        r"\[data-plugin-market-card='true'\] div:has\(> \[data-plugin-installed-badge='true'\]\)\s*\{([^}]*)\}",
+        d,
+    )
+    assert holder, "缺「已安装」父级位移修正"
+    assert "translate: none !important" in holder.group(1)
+    assert "top: 0 !important" in holder.group(1)
+
+    card = re.search(r"(?<![\w-])\[data-plugin-market-card='true'\]\s*\{([^}]*)\}", d)
+    assert card, "缺插件卡规则"
+    cbody = card.group(1)
+    assert "padding-top: 2.25rem !important" in cbody, "徽章内嵌后要给标题留出顶部空间"
+    assert "clip-path" not in cbody, "切角不能再用 clip-path（会连徽章一起裁，且斜边无描边）"
+    assert "padding-bottom: var(--ef-cut-panel) !important" in cbody
+
+    cut = re.search(r"\[data-plugin-market-card='true'\]::after\s*\{([^}]*)\}", d)
+    assert cut, "缺右下切角遮罩"
+    cbody2 = cut.group(1)
+    assert "var(--ef-cut-panel)" in cbody2, "遮罩尺寸要跟随切角档位"
+    assert "var(--ef-paper)" in cbody2, "遮罩用页面底色盖出切角"
+    assert "var(--ef-rule)" in cbody2, "斜边要补 1px 细线，否则像被啃掉一角"
+    assert "var(--ef-rule) calc(50% + 0.5px)" in cbody2, "斜边线收尾必须用细线色"
+    assert "pointer-events: none" in cbody2, "遮罩不能挡住卡片点击"

@@ -2,8 +2,8 @@
 
 六个外观开关：accent / paper / density / cut / ground / motion，
 全部是 Literal 枚举，WebUI 配置页按枚举渲染下拉框。
-默认值 = 0.3.0 现状（lime/neutral/compact/standard/contours/full），
-升级零外观变化；前三项默认对应「夜班」预设的深色协调组合。
+0.5.0 起默认变体为 yellow/neutral/compact/standard/contours/full；
+已有 config.toml 中显式保存的 accent 值仍优先，不会被默认值覆盖。
 
 WebUI 中文化约定（对照 SDK config.py 与 dashboard plugin-config.tsx 源码核实）：
 - 字段标签：json_schema_extra 的 "label"（未声明时前端回退英文字段名）；
@@ -17,7 +17,7 @@ from typing import Literal
 
 from maibot_sdk import Field, PluginConfigBase
 
-SUPPORTED_CONFIG_VERSION = "0.4.4"  # 与 _manifest.json 的 version 保持同步
+SUPPORTED_CONFIG_VERSION = "0.5.5"  # 与 _manifest.json 的 version 保持同步
 
 
 class PluginSectionConfig(PluginConfigBase):
@@ -75,7 +75,7 @@ class AppearanceConfig(PluginConfigBase):
     }
 
     accent: Literal["yellow", "lime", "ice", "amber"] = Field(
-        default="lime",
+        default="yellow",
         description=(
             "强调色：yellow(标准黄 #FFFA00) / lime(青柠 #B8FF3D) / "
             "ice(冰蓝 #7DE6FF) / amber(琥珀 #FFB31F)。"

@@ -168,6 +168,67 @@ html[data-ef-ground='plain'] [data-observation-shell='true']::before {
   display: none;
 }
 
+/* ============ 2a. 全站页标题：真实内容本身成为主视觉 ============ */
+/* 只作用于主工作区，不碰登录、初始化、独立文档或 iframe 内部。
+   页标题没有可靠的英文字段时不编造翻译：仅加 // 结构前缀，英文眉标仍由
+   board-module-code / board-rule-code 等宿主真实字段提供。 */
+[data-dashboard-main='true'] h1:not(.sr-only) {
+  color: var(--ef-ink) !important;
+  font-weight: 800 !important;
+  line-height: 1.25;
+  letter-spacing: 0 !important;
+}
+[data-dashboard-main='true'] h1:not(.sr-only):not([data-mobile-large-title='true']):not([class*='150px']) {
+  font-size: clamp(1.5rem, 1.2rem + 0.8vw, 1.875rem) !important;
+}
+[data-dashboard-main='true'] h1:not(.sr-only):not([class*='150px'])::before {
+  content: '//';
+  display: inline-block;
+  margin-right: 0.45em;
+  color: var(--ef-ink2) !important;
+  font-family: var(--board-code-font) !important;
+  font-size: 0.45em;
+  font-stretch: 125%;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  vertical-align: 0.28em;
+}
+/* 页面开始处的三色条：品红 / 当前强调色 / 薄荷，硬分段而非装饰渐变。 */
+[data-dashboard-main='true'] h1:not(.sr-only):not([class*='150px'])::after {
+  content: '';
+  display: block;
+  width: 3rem;
+  height: 3px;
+  margin-top: 0.5rem;
+  background: linear-gradient(
+    90deg,
+    var(--ef-tri-a) 0 33.333%,
+    var(--ef-accent) 33.333% 66.666%,
+    var(--ef-tri-c) 66.666% 100%
+  );
+}
+[data-dashboard-main='true'] h1:not(.sr-only) + p {
+  max-width: 64ch;
+  color: var(--ef-ink2) !important;
+  line-height: 1.6;
+}
+[data-dashboard-main='true'] h2:not(.sr-only),
+[data-dashboard-main='true'] h3:not(.sr-only) {
+  font-stretch: 100%;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+[data-dashboard-main='true'] h2:not(.sr-only) { line-height: 1.35; }
+[data-dashboard-main='true'] h3:not(.sr-only) { line-height: 1.45; }
+/* 真实日期、时间和数值字段统一用宽体等宽数字；正文不改成等宽字体。 */
+[data-dashboard-main='true'] time,
+[data-dashboard-main='true'] [data-numeric='true'],
+[data-dashboard-main='true'] [data-stats-ticker-range='true'] {
+  font-family: var(--board-number-font) !important;
+  font-stretch: 112%;
+  font-variant-numeric: tabular-nums;
+}
+
 /* ============ 2b. 键盘焦点兜底：所有可聚焦控件 ============ */
 /* 宿主 index.css:7-17 有一层 @layer dashboard-focus，把 :focus / :focus-visible 的
    outline 与 --tw-ring-shadow 全部 !important 关掉。本主题 CSS 不带 @layer，
@@ -280,6 +341,17 @@ html.dark [tabindex]:not([tabindex='-1']):focus-visible {
   background: transparent !important;
   color: var(--ef-ink) !important;
 }
+/* 配置页「钉固标签」下拉：整行由外层 outline 按钮承担悬停底色，
+   内层 menuitem 不再叠自己的 focus 深底——否则黄底上套一层黑块、文字反白。 */
+[data-config-section-menu-row='true'] [role='menuitem'],
+[data-config-section-menu-row='true'] [role='menuitem'][data-highlighted],
+[data-config-section-menu-row='true'] [role='menuitem']:focus-visible {
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+  color: inherit !important;
+  outline: none !important;
+}
 .dashboard-button--ghost:hover {
   background: var(--ef-chip) !important;
 }
@@ -340,15 +412,37 @@ html.dark [data-observation-key='true']:focus-visible {
   border: 1px solid var(--ef-rule) !important;
   background: var(--ef-panel) !important;
 }
-/* 页面外壳与只读数据屏：直角细线，无颗粒纹理 */
+/* 页面外壳与只读数据屏：直角 1px 细线，无颗粒纹理。
+   宿主 surfaces.css 的 PageFrame 原是 2px 边，这里一并收紧；只读面板绝不切角。 */
 [data-dashboard-page-frame='true'],
 [data-dashboard-data-panel='true'] {
+  border: 1px solid var(--ef-rule) !important;
   border-radius: 0 !important;
   box-shadow: none !important;
   background-image: none !important;
 }
+/* 可选列表统一为记录行：细线分隔、当前项强调色填充、可点行右下小切角。
+   右侧留白随切角档位缩放，并保留 Prompt 目录为滚动条预留的空间。 */
 [data-dashboard-list-item='true'] {
   border-radius: 0 !important;
+  border-bottom: 1px solid var(--ef-rule) !important;
+  color: var(--ef-ink) !important;
+  transition: background-color 100ms var(--ef-mech), color 100ms var(--ef-mech), transform 200ms var(--ef-snap);
+}
+[data-dashboard-list-item='true']:not(:disabled):not([aria-disabled='true']) {
+  padding-right: calc(0.75rem + var(--ef-cut-sm) + var(--dashboard-scrollbar-size, 0px));
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - var(--ef-cut-sm)), calc(100% - var(--ef-cut-sm)) 100%, 0 100%);
+}
+[data-dashboard-list-item='true']:not(:disabled):not([data-selected='true']):hover {
+  background: var(--ef-chip) !important;
+}
+[data-dashboard-list-item='true'][data-selected='true'] {
+  background: var(--ef-accent) !important;
+  color: #161616 !important;
+  font-weight: 700;
+}
+[data-dashboard-list-item='true']:focus-visible {
+  outline-offset: -2px;
 }
 
 /* ============ 4b. 看板层：麦麦观察首页 / 机器人管理 / 桌宠页 ============ */
@@ -435,6 +529,43 @@ html.dark [data-observation-key='true']:focus-visible {
   font-variant-numeric: tabular-nums;
   font-weight: 700 !important;
   letter-spacing: -0.01em;
+}
+/* 首屏主读数放大：只在宽容器内生效。宿主在窄容器下已切两列并降到 1.75rem，
+   这里跟随它，避免二列卡片把「活动」挤成竖排。
+   统计页 KPI 是四列网格，宿主对该元素写了 ellipsis，放大只会截成 ¥0....，
+   故维持宿主字号与字宽。数值仍全部来自宿主真实数据。 */
+@container board (min-width: 56rem) {
+  [data-observation-usage-big='true'] > [data-board-number='true'] {
+    font-size: clamp(2rem, 1.6rem + 1vw, 2.75rem) !important;
+  }
+}
+[data-observation-usage-big='true'] > [data-board-number='true'],
+[data-stats-kpi='true'] > [data-board-number='true'] {
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+[data-stats-kpi='true'] > [data-board-number='true'] {
+  font-size: 1.75rem !important;
+  font-stretch: 100%;
+}
+/* 四列里的小字键值行：标签过长收省略号，数值不折行，
+   避免「花费/消息数量」被硬切成两行、50.13 与「万」拆开。 */
+[data-stats-kv='true'] {
+  align-items: baseline;
+}
+[data-stats-kv='true'] > span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+[data-stats-kv='true'] > span:last-child {
+  flex-shrink: 0;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+[data-observation-usage-small='true'] > [data-board-number='true'] {
+  font-weight: 800 !important;
 }
 [data-board-label='true'] {
   color: var(--ef-ink2) !important;
@@ -623,6 +754,74 @@ html.dark [data-observation-period='true'] > button:focus-visible {
   font-stretch: 125%;
   letter-spacing: 0.1em;
   text-transform: uppercase;
+}
+
+/* ============ 4c2. 插件市场：整卡可点，使用大切角 ============ */
+/* 只命中 PluginCard（data-plugin-market-card + onClick），不误伤只读 Card。
+   底部保留与切角等高的空白，wide 档也不会把操作按钮或文字送进切角。 */
+[data-plugin-market-card='true'] {
+  padding-bottom: var(--ef-cut-panel) !important;
+  /* 顶部留出徽章高度：徽章收回卡片内后不能压住标题 */
+  padding-top: 2.25rem !important;
+  position: relative;
+  /* 切角不用 clip-path：它裁的是整个元素盒子，会连带切掉跨边框的徽章；
+     而且斜边没有描边，看起来像「被啃掉一角」。
+     改用与页面同色的三角遮罩 + 斜边细线，边框沿斜边收口。 */
+  transition: border-color 100ms var(--ef-mech);
+}
+[data-plugin-market-card='true']::after {
+  content: '';
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+  width: var(--ef-cut-panel);
+  height: var(--ef-cut-panel);
+  pointer-events: none;
+  background:
+    linear-gradient(
+      to bottom right,
+      transparent calc(50% - 0.5px),
+      var(--ef-rule) calc(50% - 0.5px),
+      var(--ef-rule) calc(50% + 0.5px),
+      transparent calc(50% + 0.5px)
+    ),
+    linear-gradient(to bottom right, transparent 50%, var(--ef-paper) 50%);
+}
+/* 榜单/已安装徽章：宿主让它们跨在卡片上边框（top-0 + -translate-y-1/2），
+   但卡片有 clip-path，溢出卡片的那一半会被裁掉，只剩半截。
+   这里收回卡片内当角标：不跨界、不被裁、也不压标题。
+   注意 Tailwind v4 的 -translate-y-1/2 走独立 `translate` 属性，
+   只写 transform:none 压不住，两个都要清。 */
+[data-plugin-market-card='true'] [data-plugin-growth-badge],
+[data-plugin-market-card='true'] [data-plugin-installed-badge='true'] {
+  top: 0 !important;
+  transform: none !important;
+  translate: none !important;
+}
+/* 「已安装」徽章的位移在它的父容器上（absolute left-4 top-0 -translate-y-1/2），
+   不在 span 自己身上——只清 span 的 translate 没用，父级仍会把它顶出卡片。 */
+[data-plugin-market-card='true'] div:has(> [data-plugin-installed-badge='true']) {
+  top: 0 !important;
+  transform: none !important;
+  translate: none !important;
+}
+[data-plugin-market-card='true']:hover,
+[data-plugin-market-card='true']:focus-within {
+  border-color: var(--ef-ink) !important;
+}
+html.dark [data-plugin-market-card='true']:hover,
+html.dark [data-plugin-market-card='true']:focus-within {
+  border-color: var(--ef-accent) !important;
+}
+[data-plugin-market-card='true'] [data-dashboard-card-title='true'] {
+  font-weight: 800 !important;
+  letter-spacing: 0 !important;
+}
+[data-plugin-stat-value],
+[data-plugin-like-button='true'] > span {
+  font-family: var(--board-number-font) !important;
+  font-stretch: 112%;
+  font-variant-numeric: tabular-nums;
 }
 
 /* ============ 4d. 首页底部输入条 ============ */
@@ -922,6 +1121,20 @@ html.dark input:focus-visible, html.dark textarea:focus-visible {
 .bg-primary.text-primary-foreground {
   clip-path: polygon(0 0, 100% 0, 100% calc(100% - var(--ef-cut-badge)), calc(100% - var(--ef-cut-badge)) 100%, 0 100%);
 }
+/* 插件市场榜单/已安装徽章：宿主用橙色（bg-orange-700 / dark:bg-orange-400），
+   与单一强调色冲突。榜单走强调色填充，已安装走墨底反白，都是方形、无投影。 */
+[data-plugin-growth-badge] {
+  border-radius: 0 !important;
+  background: var(--ef-accent) !important;
+  color: #161616 !important;
+  box-shadow: none !important;
+}
+[data-plugin-installed-badge='true'] {
+  border-radius: 0 !important;
+  background: var(--ef-ink) !important;
+  color: var(--ef-paper) !important;
+  box-shadow: none !important;
+}
 
 /* ============ 8. 对话框/浮层：直角细线，遮罩用墨色 ============ */
 [role='dialog'], [role='alertdialog'] {
@@ -1072,6 +1285,22 @@ tr {
 }
 tbody tr:hover {
   background: var(--ef-chip) !important;
+}
+/* 统计明细也是记录行：名称 + 真实读数，细线分隔；按钮行可点所以切角。 */
+[data-stats-row='true'] {
+  border-bottom: 1px solid var(--ef-rule) !important;
+}
+[data-stats-row='true']:last-child {
+  border-bottom: 0 !important;
+}
+button[data-stats-row='true'] {
+  padding-right: calc(0.5rem + var(--ef-cut-sm));
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - var(--ef-cut-sm)), calc(100% - var(--ef-cut-sm)) 100%, 0 100%);
+  transition: background-color 100ms var(--ef-mech), transform 200ms var(--ef-snap);
+}
+button[data-stats-row='true']:is(:hover, :focus-visible) {
+  background: var(--ef-chip) !important;
+  color: var(--ef-ink) !important;
 }
 
 /* ============ 11. 进度条/滑条：方形，填充=强调色 ============ */
@@ -1265,6 +1494,58 @@ html.dark .animate-pulse.border-amber-500 {
 .animate-bounce {
   animation: none !important;
 }
+/* 路由加载占位（ThinkingIllustration：三个 .animate-bounce 方块）。
+   停掉原生弹跳后它只剩三个静止方块，又被上面 [role='status'] 的提示条规则
+   当成 toast 套了「51px 深底 + 4px 黄竖旗」。这里按角色分流：
+   - 只挑「含 .animate-bounce 子元素」的 role=status，摘掉提示条外框；
+   - 三个方块改成方形指示灯，720ms 一档一档硬亮（steps，不做弹跳/缩放/发光）；
+   - 下方一条 1px 基线，像设备自检；浅色用墨（黄方块压白纸只有 1.1:1），深色才用强调色。 */
+[role='status']:has(> .animate-bounce) {
+  position: relative;
+  gap: 5px !important;
+  padding: 0 0 7px !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: var(--ef-ink) !important;
+}
+html.dark [role='status']:has(> .animate-bounce) {
+  color: var(--ef-accent) !important;
+}
+[role='status']:has(> .animate-bounce)::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 1px;
+  background: currentColor;
+  opacity: 0.34;
+}
+[role='status']:has(> .animate-bounce) > .animate-bounce {
+  border-radius: 0 !important;
+  background: currentColor !important;
+  /* 分开写长属性：用 animation 简写会把宿主内联的 animation-delay(120/240ms) 归零，
+     三个点就同步闪、失去「依次通电」。 */
+  animation-name: ef-load-step !important;
+  animation-duration: 720ms !important;
+  animation-timing-function: steps(1, end) !important;
+  animation-iteration-count: infinite !important;
+  opacity: 0.26;
+}
+/* 宿主用内联 animation-delay 错峰，但上面 .animate-bounce{animation:none!important}
+   的简写把 delay 归零了（important 压过内联）。这里按位置补回 0 / 120 / 240ms。 */
+[role='status']:has(> .animate-bounce) > .animate-bounce:nth-child(2) {
+  animation-delay: 120ms !important;
+}
+[role='status']:has(> .animate-bounce) > .animate-bounce:nth-child(3) {
+  animation-delay: 240ms !important;
+}
+@keyframes ef-load-step {
+  0%, 100% { opacity: 0.26; }
+  34% { opacity: 0.58; }
+  67% { opacity: 1; }
+}
 /* 重启遮罩 / 表情审核 / 插件统计的成功图标原生 text-green-500 绿：
    状态不用红绿。但它们都落在**浅底**上（白板、bg-muted/50 的浅圆底），
    黄色图标在白板上只有 1.11:1（图标门槛 3:1），所以浅色用墨、深色才用强调色。 */
@@ -1409,6 +1690,11 @@ html.dark .text-green-500 {
   tbody tr:hover {
     transform: translateX(6px);
   }
+  /* 选择列表与统计按钮行复用同一记录行回应；reduce 下整段不生效。 */
+  [data-dashboard-list-item='true']:not(:disabled):hover,
+  button[data-stats-row='true']:hover {
+    transform: translateX(6px);
+  }
   tbody tr > td:first-child {
     position: relative;
   }
@@ -1507,6 +1793,31 @@ html.dark .text-green-500 {
   }
 }
 
+/* 窄屏（手机）：英文代号眉标让位给中文标题，主读数回到宿主字号。
+   这里只做「别把字撑宽」，不改宿主在 390px 下的两列布局——
+   原版同样把「活动」排两行、把磁盘数值省略，属宿主既有表现。 */
+@media (max-width: 640px) {
+  [data-board-module-code='true'],
+  [data-board-rule-code='true'] {
+    display: none !important;
+  }
+  [data-home-news-label='true']::before {
+    content: '' !important;
+  }
+  [data-observation-hero] {
+    font-stretch: 100% !important;
+  }
+  [data-observation-usage-big='true'] > [data-board-number='true'],
+  [data-stats-kpi='true'] > [data-board-number='true'] {
+    font-size: 1.5rem !important;
+    font-stretch: 100%;
+  }
+  [data-observation-disk-row='true'],
+  [data-observation-news-row='true'] {
+    font-stretch: 100%;
+  }
+}
+
 /* ============ 17. JS 反馈层配套（endfield-fx.js） ============ */
 
 /* 完成黄穿：保存成功后黄色从左穿过按钮一次（600ms mech）。
@@ -1553,4 +1864,17 @@ html.ef-theming::view-transition-old(root) {
 }
 ::view-transition-new(root) {
   animation: none;
+}
+
+/* 加载指示灯的静止档：减少动效或 motion=calm 时停表，三点保持全亮。
+   放在文件末尾，与其他 calm/reduce 规则同处，避免打断既有的分段断言。 */
+@media (prefers-reduced-motion: reduce) {
+  [role='status']:has(> .animate-bounce) > .animate-bounce {
+    animation: none !important;
+    opacity: 1;
+  }
+}
+html[data-ef-motion='calm'] [role='status']:has(> .animate-bounce) > .animate-bounce {
+  animation: none !important;
+  opacity: 1;
 }
